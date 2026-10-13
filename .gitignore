@@ -1,0 +1,52 @@
+# --- Secretos -----------------------------------------------------------
+# Nunca se versiona .env: solo .env.example con valores de ejemplo.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.jks
+
+# --- Build Maven --------------------------------------------------------
+target/
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.properties
+dependency-reduced-pom.xml
+
+# --- IDE ----------------------------------------------------------------
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+!.vscode/settings.json
+.settings/
+.project
+.classpath
+.factorypath
+nbproject/
+nb-configuration.xml
+
+# --- Sistema operativo --------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+desktop.ini
+
+# --- Logs y temporales --------------------------------------------------
+*.log
+logs/
+*.pid
+*.tmp
+hs_err_pid*
+replay_pid*
+
+# --- Claude Code --------------------------------------------------------
+# Se versiona .claude/settings.json (reglas del proyecto);
+# los overrides locales de cada maquina, no.
+.claude/settings.local.json

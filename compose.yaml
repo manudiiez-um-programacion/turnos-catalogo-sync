@@ -1,0 +1,109 @@
+# Infraestructura local de ESTE servicio: la aplicacion y su PostgreSQL.
+#
+#   cp .env.example .env     y completar los valores
+#   docker compose up --build
+#   curl http://localhost:8080/actuator/health   -> {"status":"UP"}
+#
+# Redis y Kafka NO se levantan aca: son servicios de la catedra, externos y
+# compartidos, y se consumen por red con las credenciales que llegan en el
+# login tecnico. Lo que haga falta en local para pruebas lo levanta
+# Testcontainers dentro de la propia prueba. Ver el README.
+
+name: turnos-catalogo-sync
+
+services:
+
+  postgres:
+    image: postgres:18-alpine
+    container_name: catalogo-postgres
+    restart: unless-stopped
+    environment:
+      # Cuenta de administracion de la instancia. La aplicacion NO la usa:
+      # el script de init crea con ella el rol comun del servicio.
+      POSTGRES_USER: ${POSTGRES_SUPERUSER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?falta POSTGRES_SUPERUSER_PASSWORD en .env}
+      POSTGRES_DB: postgres
+      # Las lee docker/postgres/init/01-crear-base-catalogo.sh.
+      CATALOG_DB_NAME: ${DB_NAME:-catalogo}
+      CATALOG_DB_USERNAME: ${DB_USERNAME:-catalogo}
+      CATALOG_DB_PASSWORD: ${DB_PASSWORD:?falta DB_PASSWORD en .env}
+    volumes:
+      # Volumen nombrado: los datos sobreviven a `down` y a recrear el
+      # contenedor. Se borran solo con `down -v`.
+      #
+      # El punto de montaje es /var/lib/postgresql, no .../data: desde la
+      # version 18 la imagen guarda los datos en un subdirectorio por version
+      # mayor (.../18/docker) para que un pg_upgrade no cruce el limite del
+      # montaje. Montar .../data hace fallar el arranque.
+      - postgres-data:/var/lib/postgresql
+      # Solo lectura: el contenedor ejecuta el script, no lo modifica.
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      # Publicado para poder inspeccionar la base con un cliente o correr la
+      # app desde el IDE. DB_PORT permite moverlo si el 5432 esta ocupado.
+      - "${DB_PORT:-5432}:5432"
+    healthcheck:
+      # -h 127.0.0.1 fuerza TCP a proposito: durante la inicializacion el
+      # entrypoint levanta un servidor temporal que escucha SOLO en el socket
+      # unix. Chequear por socket daria "sano" antes de que corra el script
+      # de init, y la app arrancaria contra una base que todavia no existe.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  catalog-sync:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: turnos-catalogo-sync:local
+    container_name: catalogo-sync
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        # Arranca recien cuando el healthcheck de arriba pasa.
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
+      SERVER_PORT: 8080
+      SPRINGDOC_ENABLED: ${SPRINGDOC_ENABLED:-true}
+
+      # Dentro de la red de compose el host es el nombre del servicio, no
+      # localhost. Por eso DB_URL se arma aca y no se toma de .env: el valor
+      # de .env es el de correr la app fuera de Docker (./mvnw spring-boot:run).
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-catalogo}
+      DB_USERNAME: ${DB_USERNAME:-catalogo}
+      DB_PASSWORD: ${DB_PASSWORD}
+
+      # Integracion con la catedra: servicios externos. Se pasan vacios
+      # mientras no lleguen los datos de acceso (decision abierta D6); los
+      # issues que los consumen son #11 y siguientes.
+      CATEDRA_API_BASE_URL: ${CATEDRA_API_BASE_URL:-}
+      CATEDRA_TECHNICAL_USERNAME: ${CATEDRA_TECHNICAL_USERNAME:-}
+      CATEDRA_TECHNICAL_PASSWORD: ${CATEDRA_TECHNICAL_PASSWORD:-}
+      REDIS_HOST: ${REDIS_HOST:-}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_USERNAME: ${REDIS_USERNAME:-}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-}
+
+      # Seguridad de la API propia. Se define en #17 (decisiones D1 y D4).
+      JWT_ISSUER_URI: ${JWT_ISSUER_URI:-}
+      JWT_SECRET: ${JWT_SECRET:-}
+      JWT_JWKS_URI: ${JWT_JWKS_URI:-}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8080}
+    ports:
+      - "${SERVER_PORT:-8080}:8080"
+    healthcheck:
+      # wget viene en busybox, que la imagen alpine ya trae: no hace falta
+      # instalar nada en la imagen final solo para chequear salud.
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8080/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+volumes:
+  postgres-data:
+    name: turnos-catalogo-sync-postgres-data

@@ -56,6 +56,11 @@ Después hay que completar `.env` con los valores reales. `.env` está en
 cátedra (JWT técnico, contraseña de Redis, URLs privadas) no van al código,
 ni a la documentación, ni a los logs.
 
+Para levantar el servicio por primera vez alcanza con poner una contraseña
+cualquiera en `DB_PASSWORD` y `POSTGRES_SUPERUSER_PASSWORD`: el resto de las
+variables son de integraciones que todavía no están implementadas y pueden
+quedar como vienen. Después, [Levantar todo con Docker Compose](#levantar-todo-con-docker-compose).
+
 ## Stack
 
 | | |
@@ -81,9 +86,10 @@ java -version   # tiene que decir 25
 
 El servicio no arranca sin base de datos ni sin las variables de `.env`: la
 configuración no tiene valores por defecto para nada sensible, a propósito.
-Levantar todo con Docker Compose llega en el issue
-[#4](https://github.com/manudiiez-um-programacion/turnos-catalogo-sync/issues/4);
-el README reproducible completo, en el
+Estos dos comandos son para trabajar desde el IDE; el camino recomendado
+para levantar el conjunto es
+[Docker Compose](#levantar-todo-con-docker-compose). El README reproducible
+completo llega en el issue
 [#34](https://github.com/manudiiez-um-programacion/turnos-catalogo-sync/issues/34).
 
 ### Perfiles
@@ -96,6 +102,131 @@ el README reproducible completo, en el
 
 Se elige con `SPRING_PROFILES_ACTIVE`. Swagger se apaga en cualquier perfil
 con `SPRINGDOC_ENABLED=false`.
+
+## Levantar todo con Docker Compose
+
+Camino recomendado y el único que no necesita tener JDK 25 ni PostgreSQL
+instalados en la máquina: solo Docker.
+
+```bash
+cp .env.example .env            # una vez; completar las dos contraseñas
+docker compose up --build       # compila la imagen y levanta todo
+```
+
+Cuando termina, estas tres direcciones responden:
+
+| | |
+| --- | --- |
+| `http://localhost:8080/actuator/health` | `{"status":"UP"}` |
+| `http://localhost:8080/swagger-ui.html` | Swagger UI (perfil `local`) |
+| `localhost:5432` | PostgreSQL, usuario y base `catalogo` |
+
+Comprobación rápida:
+
+```bash
+curl http://localhost:8080/actuator/health
+```
+
+### Qué levanta y qué no
+
+| Servicio | Dónde corre |
+| --- | --- |
+| Aplicación (`catalog-sync`) | Este compose |
+| PostgreSQL propio (`postgres`) | Este compose |
+| Redis de la cátedra | **Externo**, no se levanta acá |
+| Kafka de la cátedra | **Externo**, no se levanta acá |
+
+Redis y Kafka son infraestructura **compartida de la cátedra**: se consumen
+por red con el host, el usuario y la contraseña que llegan en el objeto
+`integration` de la respuesta del login técnico (§5.3 de la referencia de
+integración). No tiene sentido levantar copias locales: no tendrían los
+datos ni los eventos reales. Lo que las pruebas automatizadas necesiten lo
+levanta **Testcontainers** dentro de la propia prueba, no este compose.
+
+### Comandos habituales
+
+```bash
+docker compose up --build        # levantar (recompilando la imagen)
+docker compose up -d             # levantar en segundo plano
+docker compose logs -f           # ver los logs de los dos servicios
+docker compose logs -f catalog-sync
+docker compose ps                # estado y salud de cada contenedor
+docker compose restart catalog-sync
+```
+
+Apagar:
+
+```bash
+docker compose down              # apaga y borra los contenedores,
+                                 # PERO CONSERVA los datos de la base
+docker compose down -v           # apaga y BORRA TAMBIÉN el volumen
+```
+
+La diferencia importa. Los datos viven en un volumen llamado
+`turnos-catalogo-sync-postgres-data`, que sobrevive a `down` y a recrear el
+contenedor. `down -v` lo elimina: se pierde la copia local del catálogo y,
+en el siguiente `up`, PostgreSQL se inicializa de cero y vuelve a correr el
+script de creación de la base.
+
+Eso último es justamente el motivo por el que a veces hace falta `-v`: el
+script `docker/postgres/init/01-crear-base-catalogo.sh` corre **una sola
+vez**, cuando el volumen está vacío. Si se cambia `DB_NAME`, `DB_USERNAME` o
+`DB_PASSWORD` en `.env`, el cambio no tiene efecto hasta borrar el volumen:
+
+```bash
+docker compose down -v && docker compose up --build
+```
+
+### La base de datos: una base y un usuario propios
+
+El enunciado (§3) permite que varios servicios compartan una misma instancia
+de PostgreSQL, siempre que tengan bases lógicas separadas, usuarios **sin
+permisos cruzados** y migraciones independientes. Por eso hay dos cuentas:
+
+| Rol | Para qué | Privilegios |
+| --- | --- | --- |
+| `postgres` (`POSTGRES_SUPERUSER`) | Administración de la instancia. La aplicación nunca lo usa. | Superusuario |
+| `catalogo` (`DB_USERNAME`) | La cuenta con la que se conecta el servicio. | Rol común: `LOGIN`, dueño de su base. Sin `SUPERUSER`, `CREATEDB` ni `CREATEROLE` |
+
+El script de inicialización, además de crear el rol y la base, le quita a
+`PUBLIC` el permiso de conexión y lo devuelve solo al dueño. Resultado: un
+usuario de otro servicio —el de turnos, por ejemplo— no puede conectarse a
+esta base ni siquiera si en el futuro comparten la instancia:
+
+```bash
+# FATAL: permission denied for database "catalogo"
+#        User does not have CONNECT privilege.
+```
+
+Las tablas las crean las migraciones, nunca Hibernate
+(`spring.jpa.hibernate.ddl-auto: validate`). Llegan en el issue
+[#5](https://github.com/manudiiez-um-programacion/turnos-catalogo-sync/issues/5).
+
+### La imagen
+
+`Dockerfile` multi-stage, en dos etapas:
+
+1. **`build`** — JDK 25 y el wrapper de Maven. Copia primero `pom.xml` y
+   después `src/`, para que un cambio en el código no invalide la capa de
+   dependencias descargadas.
+2. **`runtime`** — solo un JRE 25 y el jar. El proceso corre con el usuario
+   `catalogo` (uid 1001), **sin privilegios**: nunca como `root`.
+
+Las pruebas no corren durante el build de la imagen, porque las de
+integración usan Testcontainers y necesitan un demonio Docker que dentro del
+build no existe. De eso se encarga `./mvnw verify` en CI (issue
+[#10](https://github.com/manudiiez-um-programacion/turnos-catalogo-sync/issues/10)).
+
+### Si algo falla
+
+| Síntoma | Causa y solución |
+| --- | --- |
+| `Bind for 0.0.0.0:5432 failed: port is already allocated` | Ya hay un PostgreSQL ocupando el puerto. Poner otro en `DB_PORT` (por ejemplo `5433`) y ajustar `DB_URL` si se corre la app desde el IDE. |
+| `Bind for 0.0.0.0:8080 failed` | Lo mismo con `SERVER_PORT`. |
+| `required variable DB_PASSWORD is missing a value` | Falta el `.env` o la variable está vacía. `cp .env.example .env` y completarla. |
+| `dependency failed to start: container catalogo-postgres is unhealthy` | PostgreSQL no arrancó. Ver `docker compose logs postgres`. |
+| Cambié una credencial en `.env` y sigue la vieja | El script de init ya corrió. `docker compose down -v && docker compose up --build`. |
+| `password authentication failed for user "catalogo"` | Mismo caso: el volumen tiene el rol con la contraseña anterior. |
 
 ## Estructura
 

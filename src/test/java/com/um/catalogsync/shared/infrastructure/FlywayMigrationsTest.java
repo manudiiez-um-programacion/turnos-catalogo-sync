@@ -10,14 +10,8 @@ import org.flywaydb.core.api.output.MigrateResult;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Verifica que las migraciones dejan el esquema esperado sobre una base
@@ -29,20 +23,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
  * indice GIN, el comportamiento de las FK— no existe o se comporta distinto
  * en otro motor. Probar contra H2 daria verde sin probar nada.
  */
-@SpringBootTest
-@ActiveProfiles("test")
-@Testcontainers
-class FlywayMigrationsTest {
-
-    /**
-     * Misma version mayor que la de produccion (compose.yaml). Probar contra
-     * una version distinta de la que se despliega esconde justamente los
-     * errores de migracion que este test tiene que encontrar.
-     */
-    @Container
-    @ServiceConnection
-    static final PostgreSQLContainer POSTGRES =
-            new PostgreSQLContainer("postgres:18-alpine");
+class FlywayMigrationsTest extends AbstractPostgresIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbc;

@@ -67,7 +67,8 @@ docker compose down -v      # apaga y borra el volumen de la base
 
 Paquete raíz `com.um.catalogsync`, un subpaquete por slice, cada uno con
 `domain/application/infrastructure`. Perfiles `local` y `test`; Swagger se
-apaga con `SPRINGDOC_ENABLED=false`. Las migraciones llegan en #5.
+apaga con `SPRINGDOC_ENABLED=false`. Las migraciones son de Flyway, viven
+en `src/main/resources/db/migration` y las aplica la app al arrancar.
 
 Docker Compose levanta solo la app y su PostgreSQL. Redis y Kafka de la
 cátedra son externos y no se levantan acá; lo que pidan las pruebas lo

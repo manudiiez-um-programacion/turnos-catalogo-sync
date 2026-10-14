@@ -59,14 +59,20 @@ Servicio de **catálogo y sincronización** del proyecto integrador 2026
 Java 25 · Spring Boot 4.1.0 · Maven con wrapper · PostgreSQL · springdoc.
 
 ```bash
-./mvnw verify            # compila y corre las pruebas
-./mvnw spring-boot:run   # levanta el servicio (necesita PostgreSQL y .env)
+docker compose up --build   # levanta la app y PostgreSQL (necesita .env)
+docker compose down -v      # apaga y borra el volumen de la base
+./mvnw verify               # compila y corre las pruebas
+./mvnw spring-boot:run      # levanta solo la app (necesita PostgreSQL y .env)
 ```
 
 Paquete raíz `com.um.catalogsync`, un subpaquete por slice, cada uno con
 `domain/application/infrastructure`. Perfiles `local` y `test`; Swagger se
-apaga con `SPRINGDOC_ENABLED=false`. Docker Compose llega en #4, las
-migraciones en #5.
+apaga con `SPRINGDOC_ENABLED=false`. Las migraciones llegan en #5.
+
+Docker Compose levanta solo la app y su PostgreSQL. Redis y Kafka de la
+cátedra son externos y no se levantan acá; lo que pidan las pruebas lo
+levanta Testcontainers. El rol de base `catalogo` es un usuario común, dueño
+solo de su base: el superusuario es aparte y la app no lo usa.
 
 ## Planificación
 El trabajo está planificado en GitHub y **eso es la fuente de verdad**:

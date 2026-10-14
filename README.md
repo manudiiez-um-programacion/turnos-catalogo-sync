@@ -139,7 +139,9 @@ curl http://localhost:8080/actuator/health
 Redis y Kafka son infraestructura **compartida de la cátedra**: se consumen
 por red con el host, el usuario y la contraseña que llegan en el objeto
 `integration` de la respuesta del login técnico (§5.3 de la referencia de
-integración). No tiene sentido levantar copias locales: no tendrían los
+integración). Se llega a ellos por ZeroTier, y desde un contenedor hay una
+trampa de ruteo: ver
+[El entorno de la cátedra](#el-entorno-de-la-cátedra-acceso-por-zerotier). No tiene sentido levantar copias locales: no tendrían los
 datos ni los eventos reales. Lo que las pruebas automatizadas necesiten lo
 levanta **Testcontainers** dentro de la propia prueba, no este compose.
 
@@ -227,6 +229,147 @@ build no existe. De eso se encarga `./mvnw verify` en CI (issue
 | `dependency failed to start: container catalogo-postgres is unhealthy` | PostgreSQL no arrancó. Ver `docker compose logs postgres`. |
 | Cambié una credencial en `.env` y sigue la vieja | El script de init ya corrió. `docker compose down -v && docker compose up --build`. |
 | `password authentication failed for user "catalogo"` | Mismo caso: el volumen tiene el rol con la contraseña anterior. |
+| La app no alcanza la API, Redis o Kafka de la cátedra, pero desde el host sí | Solapamiento de subredes con `docker0`. Ver [El entorno de la cátedra](#el-entorno-de-la-cátedra-acceso-por-zerotier). |
+
+## El entorno de la cátedra: acceso por ZeroTier
+
+El servidor de la cátedra **no está en internet**: se alcanza por una red
+privada ZeroTier. La API REST, Redis y Kafka corren los tres en la misma IP
+—la que la red asigna a ese servidor— en puertos distintos.
+
+Nada de esto hace falta para el desarrollo de M1: el servicio levanta y
+responde `UP` sin tocar la cátedra. Se vuelve necesario a partir de
+[#11](https://github.com/manudiiez-um-programacion/turnos-catalogo-sync/issues/11),
+cuando empieza la sincronización.
+
+### Pasos previos
+
+1. Instalar el cliente de ZeroTier.
+2. Unirse a la red con el `network_id` que da el profesor.
+3. Enviarle el **node ID** del cliente al profesor.
+4. Esperar a que autorice el nodo y asigne una IP.
+
+El `network_id`, la IP del servidor y los puertos **no se versionan**: van en
+`.env`, igual que el resto de los datos de integración. `.env.example` lleva
+solo la forma de cada variable.
+
+Para confirmar que la red está activa:
+
+```bash
+ifconfig | grep -B4 'IP-ASIGNADA'    # tiene que aparecer una interfaz con la IP
+nc -z -w4 IP-DEL-SERVIDOR PUERTO-API # "succeeded" si el servidor responde
+```
+
+### Variables que dependen de esto
+
+`CATEDRA_API_BASE_URL`, `REDIS_HOST`, `REDIS_PORT` y
+`KAFKA_BOOTSTRAP_SERVERS`. Dos detalles que ahorran tiempo:
+
+- **`CATEDRA_API_BASE_URL` va sin `/api`.** Todas las rutas de la referencia
+  de integración ya lo incluyen (`POST /api/authenticate`,
+  `GET /api/synchronization/snapshot`), así que ponerlo también en la URL
+  base produce `/api/api/...`.
+- **El puerto de Kafka no es el 9092 habitual.** Usar el que indique el
+  profesor.
+
+Al verificar rutas a mano, cuidado con una trampa: una ruta inexistente
+devuelve **200**, porque cae en el catch-all del frontend del servidor. Lo
+que confirma que un endpoint existe es el **401** (existe y pide
+autenticación), no el 200.
+
+### El contenedor no alcanza al servidor, pero el host sí
+
+Este es el problema no obvio del entorno. Con la configuración de Docker por
+defecto:
+
+```bash
+# desde el host: funciona
+curl -s -o /dev/null -w '%{http_code}\n' http://IP-DEL-SERVIDOR:PUERTO-API/
+# 200
+
+# desde el contenedor: timeout
+docker compose exec catalog-sync wget -q -O /dev/null -T 8 http://IP-DEL-SERVIDOR:PUERTO-API/
+# wget: download timed out
+```
+
+**No es latencia ni firewall: es un solapamiento de subredes.** La IP del
+servidor cae dentro de `172.17.0.0/16`, que es el rango que Docker usa por
+defecto para su bridge `docker0`. Para verificarlo, dentro de la VM de
+Docker Desktop:
+
+```bash
+docker run --rm --net=host --privileged alpine:3 ip route get IP-DEL-SERVIDOR
+```
+
+Si imprime `dev docker0`, el paquete se está entregando al bridge local en
+lugar de salir hacia el host. El motivo está en el orden de las reglas de
+ruteo de la VM: la tabla `main` se consulta antes que la que tiene la ruta
+por defecto, y `main` contiene `172.17.0.0/16 dev docker0`. Una IP de
+internet no matchea ahí y sale bien; la de la cátedra sí matchea y se queda.
+
+Tres formas de resolverlo, de más a menos permanente:
+
+**A. Mover el pool de direcciones de Docker.** Es el arreglo de fondo:
+sobrevive a reinicios. En Docker Desktop → Settings → Docker Engine, agregar
+al JSON y aplicar:
+
+```json
+{
+  "default-address-pools": [
+    { "base": "10.210.0.0/16", "size": 24 }
+  ],
+  "bip": "10.211.0.1/24"
+}
+```
+
+`bip` mueve `docker0` y `default-address-pools` mueve las redes que Docker
+crea para los proyectos. **Esto recrea todas las redes de Docker de la
+máquina**: los contenedores de otros proyectos se reinician y cambian de IP.
+Conviene hacerlo en un momento tranquilo.
+
+**B. Agregar una ruta más específica en la VM.** Desbloquea en el momento,
+sin tocar la configuración global ni molestar a otros proyectos, pero **se
+pierde cuando Docker Desktop se reinicia**:
+
+```bash
+docker run --rm --net=host --privileged alpine:3 \
+  ip route add RANGO-DEL-SERVIDOR/24 via 192.168.65.1 dev eth0
+```
+
+Al ser `/24` gana sobre el `/16` de `docker0` dentro de la misma tabla.
+`192.168.65.1` es el gateway de la VM de Docker Desktop hacia el host. Para
+revertirlo, el mismo comando con `ip route del`.
+
+**C. No usar Docker para la app.** Si solo hace falta probar la integración,
+alcanza con dejar PostgreSQL en Compose y correr la app en el host, que no
+tiene el problema:
+
+```bash
+docker compose up -d postgres
+./mvnw spring-boot:run
+```
+
+Verificado en este repo: el diagnóstico y la opción **B** se probaron de
+punta a punta (con la ruta puesta, el contenedor recibe 200 de la API y
+alcanza los puertos de Redis y Kafka; al quitarla, vuelve el timeout). La
+opción **A** se apoya en el mismo mecanismo pero no se probó en esta máquina,
+porque reinicia los contenedores de otros proyectos.
+
+### Latencia
+
+El enlace es relayado, no directo, y se nota:
+
+| | |
+| --- | --- |
+| RTT | ~228 ms (`min/avg/max = 225/228/233`), 0% de pérdida |
+| Abrir la conexión TCP | ~0.23 s |
+| Request HTTP completa | ~0.46 s |
+
+Consecuencias: los defaults de Spring no sirven tal cual, cualquier
+integración que haga una request por entidad es inviable, y el backoff tiene
+que partir de una base mayor a la de una LAN. El ajuste de timeouts y
+reintentos es el issue
+[#31](https://github.com/manudiiez-um-programacion/turnos-catalogo-sync/issues/31).
 
 ## Estructura
 

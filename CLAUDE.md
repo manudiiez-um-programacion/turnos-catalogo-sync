@@ -109,6 +109,26 @@ No volver a plantearlas. Están documentadas en `docs/adr/`.
   usuario propios, sin permisos cruzados (§3). Testcontainers en pruebas;
   H2 en ningún perfil. Flyway sobre Liquibase por ser SQL plano versionado.
 
+- **D6 — Acceso al entorno de la cátedra: por ZeroTier.** Informado por
+  Slack el 2026-10-14 (no está en el enunciado ni en la referencia). El
+  servidor no está en internet: se llega por una red privada ZeroTier, y la
+  API, Redis y Kafka corren en la misma IP en puertos distintos. Hay que
+  unirse a la red y que el profesor asigne la IP. El `network_id`, la IP y
+  los puertos no se versionan: van en `.env`, y `.env.example` solo lleva la
+  forma. `CATEDRA_API_BASE_URL` es **solo el origen, sin `/api`**: las rutas
+  de la referencia ya lo incluyen.
+
+  Dos consecuencias operativas, verificadas: la app **dentro de Docker no
+  alcanza al servidor** aunque el host sí, porque la IP cae en el rango que
+  Docker usa para `docker0` y la tabla `main` gana sobre la ruta por
+  defecto; y el enlace tiene ~228 ms de RTT, lo que condiciona timeouts y
+  reintentos (#31). El procedimiento está en el README.
+
+  Queda pendiente solo el alta de la cuenta técnica, manual con Postman y
+  una sola vez (§5.1), que es parte de #11. WireMock y Testcontainers siguen
+  siendo necesarios para las pruebas automatizadas, que no pueden depender
+  de un servicio externo.
+
 - **Build: Maven** con wrapper `mvnw` versionado. El enunciado no lo impone;
   se elige por el repo de ejemplo de la cátedra, la skill y Spring Boot.
 
@@ -136,14 +156,6 @@ La recomendación es una propuesta, no una decisión tomada.
   Recomendado: **KMP consulta este servicio directamente**, con JWT de
   usuario final y CORS restringido. Bloquea #15, #16, #17. Compartida con
   el repo KMP.
-
-- **D6 — Datos de acceso al entorno de la cátedra.**
-  URL de la API, host y puerto de Redis y bootstrap de Kafka se envían por
-  otro canal y todavía no llegaron (§3). El alta de la cuenta técnica es
-  manual, con Postman, una sola vez (§5.1). Mientras no estén: desarrollar
-  contra **WireMock** (REST) y **Testcontainers** (Redis, Kafka), que es
-  además lo que necesitan las pruebas obligatorias. Bloquea la verificación
-  real de #11–#14 y #22–#28, no su desarrollo.
 
 - **D7 — ¿Para qué se usa `testing` y quién abre las promociones?**
   Pendiente de confirmar con el profesor. Importa porque los `Closes #NN`

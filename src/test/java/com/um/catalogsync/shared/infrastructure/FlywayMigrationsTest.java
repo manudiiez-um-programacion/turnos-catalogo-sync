@@ -96,7 +96,6 @@ class FlywayMigrationsTest extends AbstractPostgresIntegrationTest {
                         + "VALUES (2, 8, ?, 'SNAPSHOT')", OffsetDateTime.now()))
                 .isInstanceOf(DataIntegrityViolationException.class);
 
-        jdbc.update("DELETE FROM catalog_version");
     }
 
     @Test
@@ -113,7 +112,5 @@ class FlywayMigrationsTest extends AbstractPostgresIntegrationTest {
                 jdbc.update("DELETE FROM professional_category WHERE id = 1"))
                 .isInstanceOf(DataIntegrityViolationException.class);
 
-        jdbc.update("DELETE FROM professional");
-        jdbc.update("DELETE FROM professional_category");
     }
 }

@@ -8,7 +8,6 @@ import com.um.catalogsync.shared.infrastructure.AbstractPostgresIntegrationTest;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,11 +30,6 @@ class JpaCategoryRepositoryAdapterTest extends AbstractPostgresIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbc;
-
-    @BeforeEach
-    void limpiarLaTabla() {
-        jdbc.update("DELETE FROM professional_category");
-    }
 
     private static ProfessionalCategory categoria(Long id, String nombre) {
         return ProfessionalCategory.builder()

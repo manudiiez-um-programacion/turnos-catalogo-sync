@@ -54,6 +54,28 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- Migraciones propias, como exige el enunciado (§3). El esquema lo
+             crean estos scripts y nunca Hibernate: ddl-auto se queda en
+             validate.
+             
+             Va el starter y no flyway-core suelto: en Spring Boot 4 las
+             autoconfiguraciones se separaron en modulos propios, asi que
+             flyway-core por si solo pone la libreria en el classpath pero
+             NO la integra, y las migraciones no corren. Peor: con ddl-auto
+             en validate y sin entidades todavia, la aplicacion arranca
+             igual y sin avisar. Lo detecto el test de migraciones.
+             
+             El soporte de cada motor va en su propio artefacto desde
+             Flyway 10, de ahi el segundo. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-flyway</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
@@ -63,6 +85,27 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Las pruebas corren contra un PostgreSQL real y descartable. H2 no
+             se usa en ningun perfil: §3 lo prohibe como almacenamiento
+             principal, y probar contra un motor distinto al de produccion
+             esconde justamente los errores que importan (tipos, indices,
+             extensiones, comportamiento de las migraciones). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

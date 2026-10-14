@@ -200,9 +200,36 @@ esta base ni siquiera si en el futuro comparten la instancia:
 #        User does not have CONNECT privilege.
 ```
 
-Las tablas las crean las migraciones, nunca Hibernate
-(`spring.jpa.hibernate.ddl-auto: validate`). Llegan en el issue
-[#5](https://github.com/manudiiez-um-programacion/turnos-catalogo-sync/issues/5).
+### Las migraciones
+
+Las tablas las crean las migraciones de **Flyway**, nunca Hibernate
+(`spring.jpa.hibernate.ddl-auto: validate`). Viven en
+`src/main/resources/db/migration` y la aplicación las aplica al arrancar, así
+que `docker compose up` sobre una base vacía deja el esquema listo sin ningún
+paso extra.
+
+| Migración | Qué crea |
+| --- | --- |
+| `V1__catalogo_local.sql` | La copia local del catálogo: `professional_category`, `professional`, `weekly_schedule`, con los índices de los filtros |
+| `V2__sincronizacion.sql` | El estado propio del servicio: `catalog_version`, `processed_event`, `sync_run`, `sync_error` |
+
+Reglas que conviene saber antes de agregar una:
+
+- **Las migraciones aplicadas no se editan.** Flyway valida el checksum de
+  cada una contra el historial: si cambia un archivo ya aplicado, la
+  aplicación no arranca. Los cambios van en una migración nueva, `V3`, `V4`.
+- **`clean` está deshabilitado** en todos los perfiles: borraría el esquema
+  completo. Para empezar de cero, `docker compose down -v`.
+- **No hay `baseline-on-migrate`.** Si aparecen tablas sin historial de
+  Flyway, es un error y queremos que falle en lugar de asumir una línea base
+  que no existe.
+
+El historial se puede mirar en la tabla que Flyway mantiene:
+
+```bash
+docker compose exec postgres psql -U catalogo -d catalogo \
+  -c 'select version, description, success from flyway_schema_history order by installed_rank'
+```
 
 ### La imagen
 
@@ -230,6 +257,7 @@ build no existe. De eso se encarga `./mvnw verify` en CI (issue
 | Cambié una credencial en `.env` y sigue la vieja | El script de init ya corrió. `docker compose down -v && docker compose up --build`. |
 | `password authentication failed for user "catalogo"` | Mismo caso: el volumen tiene el rol con la contraseña anterior. |
 | La app no alcanza la API, Redis o Kafka de la cátedra, pero desde el host sí | Solapamiento de subredes con `docker0`. Ver [El entorno de la cátedra](#el-entorno-de-la-cátedra-acceso-por-zerotier). |
+| `Migration checksum mismatch` o `Validate failed` al arrancar | Se editó una migración ya aplicada. Se revierte el archivo y el cambio va en una migración nueva; o `docker compose down -v` si la base es descartable. |
 
 ## El entorno de la cátedra: acceso por ZeroTier
 

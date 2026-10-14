@@ -56,12 +56,67 @@ Después hay que completar `.env` con los valores reales. `.env` está en
 cátedra (JWT técnico, contraseña de Redis, URLs privadas) no van al código,
 ni a la documentación, ni a los logs.
 
-## Stack y comandos
+## Stack
 
-Pendiente: se completa en el issue
-[#3](https://github.com/manudiiez-um-programacion/turnos-catalogo-sync/issues/3)
-(estructura inicial) y el README reproducible completo, en el
+| | |
+| --- | --- |
+| Lenguaje | Java 25 |
+| Framework | Spring Boot 4.1.0 |
+| Build | Maven, con wrapper versionado (`./mvnw`) |
+| Base de datos | PostgreSQL (servidor; §3 prohíbe H2 y embebidas) |
+| Documentación de la API | springdoc-openapi / Swagger UI |
+
+Requiere **JDK 25** instalado. No hace falta instalar Maven: el wrapper lo baja.
+
+```bash
+java -version   # tiene que decir 25
+```
+
+## Comandos
+
+```bash
+./mvnw verify            # compila y corre las pruebas
+./mvnw spring-boot:run   # levanta el servicio (necesita PostgreSQL)
+```
+
+El servicio no arranca sin base de datos ni sin las variables de `.env`: la
+configuración no tiene valores por defecto para nada sensible, a propósito.
+Levantar todo con Docker Compose llega en el issue
+[#4](https://github.com/manudiiez-um-programacion/turnos-catalogo-sync/issues/4);
+el README reproducible completo, en el
 [#34](https://github.com/manudiiez-um-programacion/turnos-catalogo-sync/issues/34).
+
+### Perfiles
+
+| Perfil | Para qué |
+| --- | --- |
+| *(base)* | Común a todos. Swagger apagado. |
+| `local` | Desarrollo. Swagger en `/swagger-ui.html`, logs en DEBUG. |
+| `test` | Pruebas. La base la provee Testcontainers. |
+
+Se elige con `SPRING_PROFILES_ACTIVE`. Swagger se apaga en cualquier perfil
+con `SPRINGDOC_ENABLED=false`.
+
+## Estructura
+
+Arquitectura hexagonal con slices verticales: cada slice es un paquete
+autocontenido con sus tres capas adentro.
+
+```
+com.um.catalogsync
+├── category/        categorías profesionales
+├── professional/    profesionales, búsqueda y filtros
+├── schedule/        horarios semanales y agenda vigente
+├── sync/            versión local, snapshot, incremental, estado
+├── integration/     cuenta técnica ante la cátedra
+└── shared/          seguridad, errores, OpenAPI, reloj, métricas
+```
+
+Cada slice tiene `domain/` (Java puro, sin framework), `application/` (casos de
+uso) e `infrastructure/` (adaptadores). Las dependencias apuntan hacia adentro:
+ninguna `@Entity` JPA ni DTO web puede aparecer en una firma de `domain` o
+`application`. El detalle está en
+[`docs/adr/0001-arquitectura-hexagonal.md`](docs/adr/0001-arquitectura-hexagonal.md).
 
 ## Documentación
 

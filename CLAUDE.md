@@ -56,8 +56,17 @@ Servicio de **catálogo y sincronización** del proyecto integrador 2026
   §18.1–§18.2 (recuperación).
 
 ## Stack y comandos
-Pendiente: se completa en el issue #3 (estructura inicial). Hasta entonces
-no hay código de aplicación en el repo.
+Java 25 · Spring Boot 4.1.0 · Maven con wrapper · PostgreSQL · springdoc.
+
+```bash
+./mvnw verify            # compila y corre las pruebas
+./mvnw spring-boot:run   # levanta el servicio (necesita PostgreSQL y .env)
+```
+
+Paquete raíz `com.um.catalogsync`, un subpaquete por slice, cada uno con
+`domain/application/infrastructure`. Perfiles `local` y `test`; Swagger se
+apaga con `SPRINGDOC_ENABLED=false`. Docker Compose llega en #4, las
+migraciones en #5.
 
 ## Planificación
 El trabajo está planificado en GitHub y **eso es la fuente de verdad**:

@@ -1,0 +1,21 @@
+# Perfil de desarrollo local. Se activa con SPRING_PROFILES_ACTIVE=local.
+#
+# Sigue sin traer valores por defecto para la base: las credenciales locales
+# van en .env, fuera del repo. Lo que cambia respecto del perfil base es el
+# nivel de detalle y que la documentacion de la API queda a mano.
+
+springdoc:
+  api-docs:
+    enabled: ${SPRINGDOC_ENABLED:true}
+  swagger-ui:
+    enabled: ${SPRINGDOC_ENABLED:true}
+    path: /swagger-ui.html
+
+management:
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.um.catalogsync: DEBUG

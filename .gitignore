@@ -10,10 +10,12 @@
 
 # --- Build Maven --------------------------------------------------------
 target/
-!.mvn/wrapper/maven-wrapper.jar
-.mvn/timing.properties
-.mvn/wrapper/maven-wrapper.properties
 dependency-reduced-pom.xml
+.mvn/timing.properties
+# El wrapper SI se versiona (mvnw, mvnw.cmd y maven-wrapper.properties):
+# es lo que permite clonar y correr ./mvnw verify sin instalar Maven.
+# Solo se ignora el jar, que con distributionType=only-script ni existe.
+.mvn/wrapper/maven-wrapper.jar
 
 # --- IDE ----------------------------------------------------------------
 .idea/

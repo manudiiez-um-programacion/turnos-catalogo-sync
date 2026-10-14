@@ -41,7 +41,9 @@ Servicio de **catálogo y sincronización** del proyecto integrador 2026
   externos: no inventar campos, endpoints ni claves.
 - Secretos (JWT técnico, `redisPassword`, URL de la API, Redis, Kafka)
   siempre externalizados. El JWT técnico nunca va a la app KMP.
-- Arquitectura hexagonal: seguí la skill `hexagonal-slicing`
+- Arquitectura hexagonal por slices verticales: la decisión y sus desvíos
+  están en `docs/adr/0001-arquitectura-hexagonal.md`; el layout y las
+  convenciones, en la skill `hexagonal-slicing`
   (`.claude/skills/hexagonal-slicing/SKILL.md`).
 
 ## Documentación de la cátedra (leer cuando haga falta)
@@ -78,8 +80,27 @@ Los issues se trabajan en orden dentro de cada milestone, porque las
 dependencias son casi lineales. Si un issue resulta más grande de lo
 previsto, partirlo en issues nuevos del mismo milestone antes de seguir.
 
+## Decisiones cerradas
+No volver a plantearlas. Están documentadas en `docs/adr/`.
+
+- **D2 — JHipster: NO se usa.** Confirmado con la cátedra el 2026-10-14:
+  §3.1 lo deja opcional. Choca con la hexagonal por slices (estructura
+  horizontal, entidades que mezclan JPA/validación/serialización, CRUD que
+  acá sobra). Se cumple igual lo exigido: modelo de usuario compatible
+  (§3.2, en el repo de turnos) y errores `application/problem+json` con
+  `code` estable (§13). Ver `docs/adr/0001-arquitectura-hexagonal.md`.
+
+- **D3 — PostgreSQL + Flyway.** Confirmado el 2026-10-14. Base lógica y
+  usuario propios, sin permisos cruzados (§3). Testcontainers en pruebas;
+  H2 en ningún perfil. Flyway sobre Liquibase por ser SQL plano versionado.
+
+- **Build: Maven** con wrapper `mvnw` versionado. El enunciado no lo impone;
+  se elige por el repo de ejemplo de la cátedra, la skill y Spring Boot.
+
+- **Paquete raíz: `com.um.catalogsync`.** Fijo, no se renombra.
+
 ## Decisiones abiertas
-Los issues referencian estas decisiones por su ID (`D1`, `D2`, …). Mientras
+Los issues referencian estas decisiones por su ID (`D1`, `D4`, …). Mientras
 no estén cerradas, los issues que dependen de ellas no se pueden terminar.
 La recomendación es una propuesta, no una decisión tomada.
 
@@ -88,20 +109,6 @@ La recomendación es una propuesta, no una decisión tomada.
   por usuario (§4.2); este servicio solo valida el JWT que turnos emite.
   Falta acordar cómo se publica la clave de firma (secreto compartido o
   JWKS). Bloquea #17, #18, #32, #33. Compartida con el repo de turnos.
-
-- **D2 — ¿Se usa JHipster?**
-  Opcional según §3.1 pero recomendado por la cátedra. Choca con la
-  arquitectura hexagonal por slices: genera estructura horizontal y
-  entidades que mezclan JPA, validación y serialización. Recomendado:
-  **no usarlo**, manteniendo igual lo que la cátedra sí exige — modelo de
-  usuario compatible con el de JHipster (§3.2) y errores en
-  `application/problem+json` con `code` estable (§13). **Confirmar con el
-  profesor.** Bloquea #2, #3.
-
-- **D3 — ¿Motor de base de datos servidor y migraciones?**
-  Recomendado: **PostgreSQL + Flyway**, con base y usuario propios y sin
-  permisos cruzados (§3). En pruebas, PostgreSQL por Testcontainers; H2 no
-  se usa en ningún perfil (§3 lo prohíbe). Bloquea #3, #4, #5.
 
 - **D4 — ¿JWT del usuario propagado o JWT técnico interno entre servicios?**
   Recomendado: la API de agenda (#18) usa un **JWT técnico interno propio

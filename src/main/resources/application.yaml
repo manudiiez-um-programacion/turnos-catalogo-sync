@@ -1,0 +1,49 @@
+# Configuracion base, comun a todos los perfiles.
+#
+# Ningun secreto ni URL de la catedra vive acá: todo entra por variable de
+# entorno con ${VAR}, sin valor por defecto sensible. Si una variable falta,
+# la aplicacion no arranca, que es el comportamiento buscado.
+# El archivo .env no se versiona; .env.example documenta las variables.
+
+spring:
+  application:
+    name: catalog-sync
+
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Las tablas las crean las migraciones (issue #5), nunca Hibernate.
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+server:
+  port: ${SERVER_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+# Swagger UI se puede apagar por configuracion en cualquier perfil.
+springdoc:
+  api-docs:
+    enabled: ${SPRINGDOC_ENABLED:false}
+  swagger-ui:
+    enabled: ${SPRINGDOC_ENABLED:false}
+
+logging:
+  level:
+    com.um.catalogsync: INFO

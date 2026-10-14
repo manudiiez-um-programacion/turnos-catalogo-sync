@@ -15,10 +15,22 @@ spring:
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # Arrancamos siempre de una base vacia: si hay tablas sin historial de
+    # Flyway, es un error y queremos que falle en vez de asumir una linea
+    # base inexistente.
+    baseline-on-migrate: false
+    validate-on-migrate: true
+    # Nunca, en ningun perfil: `clean` borraria el esquema completo.
+    clean-disabled: true
+
   jpa:
     open-in-view: false
     hibernate:
-      # Las tablas las crean las migraciones (issue #5), nunca Hibernate.
+      # Las tablas las crean las migraciones de db/migration, nunca
+      # Hibernate. validate solo verifica que el mapeo coincida.
       ddl-auto: validate
     properties:
       hibernate:

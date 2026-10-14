@@ -76,9 +76,14 @@ services:
       DB_USERNAME: ${DB_USERNAME:-catalogo}
       DB_PASSWORD: ${DB_PASSWORD}
 
-      # Integracion con la catedra: servicios externos. Se pasan vacios
-      # mientras no lleguen los datos de acceso (decision abierta D6); los
-      # issues que los consumen son #11 y siguientes.
+      # Integracion con la catedra: servicios externos, en la red ZeroTier.
+      # Se pasan vacios por defecto para que los issues que los consumen
+      # (#11 y siguientes) no tengan que tocar este archivo.
+      #
+      # OJO: con la configuracion de Docker por defecto, el contenedor NO
+      # alcanza al servidor de la catedra aunque el host si, porque su IP
+      # cae en el rango que Docker usa para docker0. El README explica como
+      # verificarlo y resolverlo.
       CATEDRA_API_BASE_URL: ${CATEDRA_API_BASE_URL:-}
       CATEDRA_TECHNICAL_USERNAME: ${CATEDRA_TECHNICAL_USERNAME:-}
       CATEDRA_TECHNICAL_PASSWORD: ${CATEDRA_TECHNICAL_PASSWORD:-}

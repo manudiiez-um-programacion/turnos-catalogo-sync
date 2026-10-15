@@ -45,7 +45,13 @@ permissions:
 jobs:
   verify:
     name: Compilar y probar
-    runs-on: ubuntu-latest
+    # Imagen fijada en lugar de ubuntu-latest. El 19/10/2026 la etiqueta
+    # ubuntu-latest pasa a Ubuntu 26, y este proyecto se entrega el 30/11:
+    # un cambio de imagen a mitad de camino puede mover la version de Docker
+    # o las herramientas preinstaladas, y eso romperia las pruebas con
+    # Testcontainers en el peor momento. Se sube de version a proposito, no
+    # por sorpresa.
+    runs-on: ubuntu-24.04
     # Las pruebas de integracion levantan PostgreSQL con Testcontainers.
     # El tope esta para que un job colgado se corte solo, no porque se
     # espere que tarde tanto.
@@ -53,10 +59,10 @@ jobs:
 
     steps:
       - name: Clonar el repositorio
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Instalar JDK 25
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '25'
@@ -66,7 +72,7 @@ jobs:
           # terminar el job.
           cache: maven
 
-      # Docker viene preinstalado en los runners ubuntu-latest, asi que
+      # Docker viene preinstalado en los runners de Ubuntu, asi que
       # Testcontainers levanta PostgreSQL sin configuracion extra. No hace
       # falta declarar un `services:` con postgres: las pruebas eligen la
       # version del motor y la manejan ellas.
@@ -77,7 +83,7 @@ jobs:
       # rompio ni con que. Los reportes de surefire si.
       - name: Guardar los reportes de las pruebas si fallan
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: surefire-reports
           path: target/surefire-reports/

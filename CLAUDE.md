@@ -70,6 +70,12 @@ Las pruebas que necesitan el entorno real de la cátedra se marcan con
 `@Tag("catedra")` y quedan fuera de `./mvnw verify` y de CI: el job de
 GitHub Actions no tiene la red privada ni secretos, y no debe tenerlos.
 
+CI corre en GitHub Actions (`.github/workflows/ci.yml`) y, después de las
+pruebas, dispara el análisis de SonarCloud. JaCoCo mide la cobertura en
+`verify`; `lombok.config` hace que el código generado por Lombok no cuente.
+El `SONAR_TOKEN` es un secret del repo: si falta, el análisis se omite con
+un aviso y el job sigue en verde.
+
 Paquete raíz `com.um.catalogsync`, un subpaquete por slice, cada uno con
 `domain/application/infrastructure`. Perfiles `local` y `test`; Swagger se
 apaga con `SPRINGDOC_ENABLED=false`. Las migraciones son de Flyway, viven

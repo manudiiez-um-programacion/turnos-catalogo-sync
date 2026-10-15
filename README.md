@@ -1,6 +1,8 @@
 # turnos-catalogo-sync
 
 [![CI](https://github.com/manudiiez-um-programacion/turnos-catalogo-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/manudiiez-um-programacion/turnos-catalogo-sync/actions/workflows/ci.yml)
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=manudiiez-um-programacion_turnos-catalogo-sync&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=manudiiez-um-programacion_turnos-catalogo-sync)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=manudiiez-um-programacion_turnos-catalogo-sync&metric=coverage)](https://sonarcloud.io/summary/new_code?id=manudiiez-um-programacion_turnos-catalogo-sync)
 
 Servicio de **catálogo y sincronización** del proyecto integrador 2026
 (sistema distribuido de turnos). Este repositorio contiene solamente este
@@ -139,6 +141,48 @@ class SnapshotRealDeLaCatedraTest { ... }
 Un job que depende de una red privada falla siempre y deja de informar sobre
 el código, así que esas pruebas quedan fuera a propósito. El mecanismo es la
 propiedad `excluded.test.groups` del `pom.xml`.
+
+### Análisis de calidad: SonarCloud
+
+El mismo job, después de que las pruebas pasan, manda el código a
+[SonarCloud](https://sonarcloud.io/summary/new_code?id=manudiiez-um-programacion_turnos-catalogo-sync).
+El análisis **lo dispara GitHub Actions**, no el análisis automático de
+SonarCloud: los dos a la vez se pisan, así que el automático queda
+desactivado en la web.
+
+Qué mide:
+
+| | |
+| --- | --- |
+| **Bugs y code smells** | Problemas de corrección y mantenibilidad sobre el código Java. |
+| **Vulnerabilidades y security hotspots** | Patrones de riesgo: secretos en el código, inyección, criptografía débil. |
+| **Cobertura** | La que mide JaCoCo en `./mvnw verify`, leída de `target/site/jacoco/jacoco.xml`. |
+| **Duplicación** | Bloques repetidos. |
+| **New code** | Lo anterior restringido a lo que cambió. Es la vista que importa: el proyecto puede arrastrar deuda y aun así exigir que lo nuevo entre limpio. |
+
+La cobertura se mide con JaCoCo, que ya corre en `./mvnw verify`:
+
+```bash
+./mvnw verify                        # genera target/site/jacoco/jacoco.xml
+open target/site/jacoco/index.html   # el reporte navegable, en local
+```
+
+`lombok.config` marca el código que genera Lombok con `@lombok.Generated`,
+y JaCoCo lo ignora. Sin eso, los getters, setters y builders de cada modelo
+contarían como líneas sin probar: el número mediría la cantidad de
+anotaciones de Lombok en lugar de la calidad de las pruebas, y bajaría
+justo cuando se agrega un modelo bien hecho.
+
+**El token lo provee el dueño del repositorio.** El análisis necesita un
+`SONAR_TOKEN` que vive en los *secrets* del repositorio y no aparece en el
+código, ni en el `pom.xml`, ni en el workflow, ni en este README. Si el
+secret no está configurado, el paso de análisis se omite con un aviso y el
+job sigue compilando y probando igual: la verificación del código no
+depende de una cuenta externa.
+
+Lo que sí está en el `pom.xml` son `sonar.organization` y
+`sonar.projectKey`, que identifican el proyecto y no autorizan nada. Tienen
+que coincidir exactamente con los que muestra SonarCloud.
 
 ## Levantar todo con Docker Compose
 

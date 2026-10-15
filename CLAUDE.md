@@ -62,8 +62,13 @@ Java 25 · Spring Boot 4.1.0 · Maven con wrapper · PostgreSQL · springdoc.
 docker compose up --build   # levanta la app y PostgreSQL (necesita .env)
 docker compose down -v      # apaga y borra el volumen de la base
 ./mvnw verify               # compila y corre las pruebas
+./mvnw verify -Pcatedra     # suma las pruebas contra la catedra real (ZeroTier)
 ./mvnw spring-boot:run      # levanta solo la app (necesita PostgreSQL y .env)
 ```
+
+Las pruebas que necesitan el entorno real de la cátedra se marcan con
+`@Tag("catedra")` y quedan fuera de `./mvnw verify` y de CI: el job de
+GitHub Actions no tiene la red privada ni secretos, y no debe tenerlos.
 
 Paquete raíz `com.um.catalogsync`, un subpaquete por slice, cada uno con
 `domain/application/infrastructure`. Perfiles `local` y `test`; Swagger se

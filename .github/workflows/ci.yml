@@ -1,0 +1,90 @@
+# Verificacion automatica: compila y corre las pruebas.
+#
+# Es verificacion propia, no una barrera de merge. El ruleset del repo no
+# exige status checks y este workflow no lo cambia: configurar el check como
+# obligatorio es del profesor, igual que CODEOWNERS y las reglas de las ramas
+# protegidas.
+#
+# No necesita ningun secreto, y eso es deliberado. Las pruebas que requieren
+# el entorno real de la catedra —al que solo se llega por ZeroTier— estan
+# marcadas con el tag `catedra` de JUnit y quedan excluidas por defecto
+# (ver la propiedad excluded.test.groups en pom.xml). Un job que depende de
+# una red privada falla siempre y deja de informar sobre el codigo.
+
+name: CI
+
+on:
+  # Todo push, en cualquier rama. El objetivo del issue es que las pruebas
+  # rompan acá antes que en la maquina del profesor, y las ramas de issue se
+  # pushean seguido como backup: esperar a que exista el PR dejaria ese
+  # trabajo sin verificar.
+  push:
+    branches: ['**']
+
+  # Los PR hacia las ramas de integracion verifican algo distinto, no lo
+  # mismo otra vez: GitHub construye el merge de la rama con su destino, asi
+  # que este job prueba el resultado de integrar. Es lo que detecta el caso
+  # de "mi rama pasa sola, pero mezclada con el destino rompe", que el push
+  # sobre la rama no puede ver.
+  pull_request:
+    branches:
+      - 'milestone/**'
+      - develop
+      - testing
+      - main
+
+# Si llegan varios push seguidos a la misma rama, solo interesa el ultimo.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Solo lectura: este workflow no publica nada ni escribe en el repo.
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Compilar y probar
+    # Imagen fijada en lugar de ubuntu-latest. El 19/10/2026 la etiqueta
+    # ubuntu-latest pasa a Ubuntu 26, y este proyecto se entrega el 30/11:
+    # un cambio de imagen a mitad de camino puede mover la version de Docker
+    # o las herramientas preinstaladas, y eso romperia las pruebas con
+    # Testcontainers en el peor momento. Se sube de version a proposito, no
+    # por sorpresa.
+    runs-on: ubuntu-24.04
+    # Las pruebas de integracion levantan PostgreSQL con Testcontainers.
+    # El tope esta para que un job colgado se corte solo, no porque se
+    # espere que tarde tanto.
+    timeout-minutes: 20
+
+    steps:
+      - name: Clonar el repositorio
+        uses: actions/checkout@v7
+
+      - name: Instalar JDK 25
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+          # Cachea ~/.m2/repository con la clave derivada del pom.xml.
+          # Se usa el cache de setup-java y no un actions/cache a mano
+          # porque ya resuelve el versionado de la clave y el guardado al
+          # terminar el job.
+          cache: maven
+
+      # Docker viene preinstalado en los runners de Ubuntu, asi que
+      # Testcontainers levanta PostgreSQL sin configuracion extra. No hace
+      # falta declarar un `services:` con postgres: las pruebas eligen la
+      # version del motor y la manejan ellas.
+      - name: Compilar y correr las pruebas
+        run: ./mvnw --batch-mode --no-transfer-progress verify
+
+      # Si algo falla, el log de la consola no alcanza para ver que prueba
+      # rompio ni con que. Los reportes de surefire si.
+      - name: Guardar los reportes de las pruebas si fallan
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: surefire-reports
+          path: target/surefire-reports/
+          retention-days: 7

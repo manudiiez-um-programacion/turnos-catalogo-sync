@@ -1,5 +1,7 @@
 # turnos-catalogo-sync
 
+[![CI](https://github.com/manudiiez-um-programacion/turnos-catalogo-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/manudiiez-um-programacion/turnos-catalogo-sync/actions/workflows/ci.yml)
+
 Servicio de **catálogo y sincronización** del proyecto integrador 2026
 (sistema distribuido de turnos). Este repositorio contiene solamente este
 servicio.
@@ -102,6 +104,41 @@ completo llega en el issue
 
 Se elige con `SPRING_PROFILES_ACTIVE`. Swagger se apaga en cualquier perfil
 con `SPRINGDOC_ENABLED=false`.
+
+### Verificación automática
+
+Cada push a cualquier rama, y cada PR hacia `milestone/*`, `develop`,
+`testing` y `main`, corre `./mvnw verify` en GitHub Actions
+([`.github/workflows/ci.yml`](.github/workflows/ci.yml)). El badge de arriba
+muestra el resultado de la rama por defecto.
+
+Los dos disparadores verifican cosas distintas: el push prueba la rama tal
+como está, y el PR prueba el **merge** de la rama con su destino, que es lo
+que detecta el caso de "mi rama pasa sola, pero mezclada con el destino
+rompe".
+
+Es verificación propia, no una barrera de merge: el ruleset del repositorio
+no exige status checks y el workflow no lo cambia. Configurar el check como
+obligatorio es del profesor.
+
+El job no usa ningún secreto. Las pruebas que necesitan el entorno real de
+la cátedra —al que solo se llega por
+[ZeroTier](#el-entorno-de-la-cátedra-acceso-por-zerotier)— se marcan con el
+tag `catedra` de JUnit y quedan excluidas por defecto:
+
+```java
+@Tag("catedra")
+class SnapshotRealDeLaCatedraTest { ... }
+```
+
+```bash
+./mvnw verify              # sin las de la cátedra: es lo que corre CI
+./mvnw verify -Pcatedra    # las incluye (requiere estar en la red y .env)
+```
+
+Un job que depende de una red privada falla siempre y deja de informar sobre
+el código, así que esas pruebas quedan fuera a propósito. El mecanismo es la
+propiedad `excluded.test.groups` del `pom.xml`.
 
 ## Levantar todo con Docker Compose
 

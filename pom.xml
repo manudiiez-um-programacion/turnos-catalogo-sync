@@ -19,6 +19,20 @@
     <properties>
         <java.version>25</java.version>
         <springdoc.version>3.1.0</springdoc.version>
+
+        <!-- Tags de JUnit que NO se corren por defecto.
+
+             El tag "catedra" marca las pruebas que necesitan el entorno real
+             de la catedra, al que solo se llega por ZeroTier y con las
+             credenciales de la cuenta tecnica (decision D6). Quedan afuera
+             por defecto para que `./mvnw verify` y el job de CI no dependan
+             de una red privada ni de ningun secreto: en CI fallarian siempre,
+             y un job que falla por el entorno deja de informar sobre el
+             codigo.
+
+             Para correrlas, estando en la red y con .env completo:
+             ./mvnw verify -Pcatedra -->
+        <excluded.test.groups>catedra</excluded.test.groups>
     </properties>
 
     <dependencies>
@@ -57,14 +71,14 @@
         <!-- Migraciones propias, como exige el enunciado (§3). El esquema lo
              crean estos scripts y nunca Hibernate: ddl-auto se queda en
              validate.
-             
+
              Va el starter y no flyway-core suelto: en Spring Boot 4 las
              autoconfiguraciones se separaron en modulos propios, asi que
              flyway-core por si solo pone la libreria en el classpath pero
              NO la integra, y las migraciones no corren. Peor: con ddl-auto
              en validate y sin entidades todavia, la aplicacion arranca
              igual y sin avisar. Lo detecto el test de migraciones.
-             
+
              El soporte de cada motor va en su propio artefacto desde
              Flyway 10, de ahi el segundo. -->
         <dependency>
@@ -125,6 +139,15 @@
                 </configuration>
             </plugin>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!-- Ver la propiedad excluded.test.groups. El perfil
+                         `catedra` la vacia para incluirlas. -->
+                    <excludedGroups>${excluded.test.groups}</excludedGroups>
+                </configuration>
+            </plugin>
+            <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
@@ -138,5 +161,19 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- Incluye las pruebas contra el entorno real de la catedra.
+
+             Requiere estar en la red ZeroTier y tener .env completo con las
+             credenciales de la cuenta tecnica. No se usa en CI a proposito:
+             el job no tiene ni la red ni los secretos, y no debe tenerlos. -->
+        <profile>
+            <id>catedra</id>
+            <properties>
+                <excluded.test.groups/>
+            </properties>
+        </profile>
+    </profiles>
 
 </project>

@@ -1,0 +1,62 @@
+#!/bin/sh
+# Valida que el mensaje de commit cumpla Conventional Commits con cuerpo obligatorio.
+# Instalar una vez por clon:  git config core.hooksPath .githooks
+
+MSG_FILE="$1"
+
+# Quitar CR (Windows), comentarios y todo lo que sigue a la linea "scissors" de git commit -v
+CLEAN=$(tr -d '\r' < "$MSG_FILE" | sed '/^# -\{24\} >8 -\{24\}$/,$d' | grep -v '^#')
+
+HEADER=$(printf '%s\n' "$CLEAN" | sed -n '1p')
+
+# Excepciones generadas por git
+case "$HEADER" in
+  "Merge "*|"Revert \""*|"fixup! "*|"squash! "*|"amend! "*) exit 0 ;;
+esac
+
+TYPES='feat|fix|docs|test|refactor|chore|ci|build|perf|style|revert'
+
+fail() {
+  echo "" >&2
+  echo "ERROR commit rechazado: $1" >&2
+  echo "" >&2
+  echo "Formato requerido:" >&2
+  echo "  tipo(scope): resumen en imperativo (max 72 caracteres, sin punto final)" >&2
+  echo "  <linea en blanco>" >&2
+  echo "  Cuerpo: que se hizo y por que (obligatorio)." >&2
+  echo "  <linea en blanco>" >&2
+  echo "  Refs #NN" >&2
+  echo "" >&2
+  echo "Tipos validos: $(echo $TYPES | tr '|' ' ')" >&2
+  echo "Ejemplo:" >&2
+  echo "  feat(sync): aplicar cambios incrementales en orden" >&2
+  echo "" >&2
+  echo "  La version local solo avanza al terminar la transaccion," >&2
+  echo "  para evitar estados intermedios ante fallos." >&2
+  echo "" >&2
+  echo "  Refs #12" >&2
+  echo "" >&2
+  echo "Tu mensaje quedo guardado en .git/COMMIT_EDITMSG" >&2
+  exit 1
+}
+
+[ -n "$HEADER" ] || fail "el mensaje esta vacio."
+
+printf '%s\n' "$HEADER" | grep -Eq "^($TYPES)(\([a-z0-9._/-]+\))?!?: [^ ].*[^ .]$" \
+  || fail "el titulo no respeta 'tipo(scope): resumen'."
+
+LEN=$(printf '%s' "$HEADER" | wc -m | tr -d ' ')
+[ "$LEN" -le 72 ] || fail "el titulo tiene $LEN caracteres (maximo 72)."
+
+LINE2=$(printf '%s\n' "$CLEAN" | sed -n '2p')
+[ -z "$LINE2" ] || fail "falta la linea en blanco entre el titulo y el cuerpo."
+
+# El cuerpo debe tener al menos una linea que no sea trailer (Refs #N, Closes #N, Co-Authored-By:, etc.)
+BODY_TEXT=$(printf '%s\n' "$CLEAN" | sed '1,2d' \
+  | grep -Ev '^[[:space:]]*$' \
+  | grep -Ev '^[A-Za-z][A-Za-z-]*: ' \
+  | grep -Ev '^(Refs|Closes|Fixes|Resolves|Part of) #[0-9]+' \
+  | grep -Ev '^BREAKING CHANGE: ')
+[ -n "$BODY_TEXT" ] || fail "falta el cuerpo explicando que se hizo y por que."
+
+exit 0

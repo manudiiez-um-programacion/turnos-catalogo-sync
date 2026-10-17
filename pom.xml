@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.1.0</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.um</groupId>
+    <artifactId>catalog-sync</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>catalog-sync</name>
+    <description>Servicio de catalogo y sincronizacion del proyecto integrador</description>
+
+    <properties>
+        <java.version>25</java.version>
+        <springdoc.version>3.1.0</springdoc.version>
+
+        <!-- Tags de JUnit que NO se corren por defecto.
+
+             El tag "catedra" marca las pruebas que necesitan el entorno real
+             de la catedra, al que solo se llega por ZeroTier y con las
+             credenciales de la cuenta tecnica (decision D6). Quedan afuera
+             por defecto para que `./mvnw verify` y el job de CI no dependan
+             de una red privada ni de ningun secreto: en CI fallarian siempre,
+             y un job que falla por el entorno deja de informar sobre el
+             codigo.
+
+             Para correrlas, estando en la red y con .env completo:
+             ./mvnw verify -Pcatedra -->
+        <excluded.test.groups>catedra</excluded.test.groups>
+
+        <!-- Cobertura y analisis estatico.
+
+             Las versiones van fijadas y no heredadas: el parent de Spring
+             Boot no administra ninguno de los dos plugins, asi que sin
+             version Maven resolveria "la ultima que haya" y la build
+             dejaria de ser reproducible. -->
+        <jacoco.version>0.8.15</jacoco.version>
+        <sonar.maven.plugin.version>5.8.0.7211</sonar.maven.plugin.version>
+
+        <!-- SonarCloud.
+
+             Estos dos valores los asigna SonarCloud al importar el repo y
+             tienen que coincidir EXACTAMENTE con los que muestra el
+             proyecto en su web; si no, el analisis sube a otro proyecto o
+             falla con "project not found". Son los valores que SonarCloud
+             genera por convencion para un repo de GitHub (la organizacion
+             toma el nombre de la organizacion de GitHub, y la clave
+             combina organizacion y repositorio), pero conviene
+             verificarlos contra la web la primera vez.
+
+             No son secretos: identifican el proyecto, no autorizan nada.
+             Lo unico secreto es SONAR_TOKEN, que vive en los secrets del
+             repositorio y nunca en el pom. -->
+        <sonar.organization>manudiiez-um-programacion</sonar.organization>
+        <sonar.projectKey>manudiiez-um-programacion_turnos-catalogo-sync</sonar.projectKey>
+        <sonar.host.url>https://sonarcloud.io</sonar.host.url>
+
+        <!-- Donde deja JaCoCo el reporte que Sonar consume. El plugin de
+             Sonar lo busca solo en esta ruta, pero se declara explicito
+             para que se vea que las dos herramientas estan hablando del
+             mismo archivo. -->
+        <sonar.coverage.jacoco.xmlReportPaths>
+            ${project.build.directory}/site/jacoco/jacoco.xml
+        </sonar.coverage.jacoco.xmlReportPaths>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>${springdoc.version}</version>
+        </dependency>
+
+        <!-- Base de datos servidor. El enunciado (§3) prohibe H2, SQLite y
+             cualquier base embebida o en memoria como almacenamiento
+             principal, en ningun perfil. -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- Migraciones propias, como exige el enunciado (§3). El esquema lo
+             crean estos scripts y nunca Hibernate: ddl-auto se queda en
+             validate.
+
+             Va el starter y no flyway-core suelto: en Spring Boot 4 las
+             autoconfiguraciones se separaron en modulos propios, asi que
+             flyway-core por si solo pone la libreria en el classpath pero
+             NO la integra, y las migraciones no corren. Peor: con ddl-auto
+             en validate y sin entidades todavia, la aplicacion arranca
+             igual y sin avisar. Lo detecto el test de migraciones.
+
+             El soporte de cada motor va en su propio artefacto desde
+             Flyway 10, de ahi el segundo. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-flyway</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Las pruebas corren contra un PostgreSQL real y descartable. H2 no
+             se usa en ningun perfil: §3 lo prohibe como almacenamiento
+             principal, y probar contra un motor distinto al de produccion
+             esconde justamente los errores que importan (tipos, indices,
+             extensiones, comportamiento de las migraciones). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!-- Ver la propiedad excluded.test.groups. El perfil
+                         `catedra` la vacia para incluirlas. -->
+                    <excludedGroups>${excluded.test.groups}</excludedGroups>
+                </configuration>
+            </plugin>
+            <!-- Cobertura. prepare-agent instrumenta las clases antes de
+                 que corran las pruebas; report traduce el .exec binario al
+                 XML que Sonar lee, en verify, que es la fase que corre CI. -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.version}</version>
+                <executions>
+                    <execution>
+                        <id>jacoco-instrumentar</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>jacoco-reporte</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+        </plugins>
+
+        <pluginManagement>
+            <plugins>
+                <!-- Solo fija la version. Va en pluginManagement y no en
+                     plugins porque el analisis no se ejecuta en el ciclo de
+                     vida: lo dispara GitHub Actions con `mvnw sonar:sonar`
+                     despues de que las pruebas pasaron. Con la version
+                     administrada, ese comando corto usa la version fijada y
+                     el workflow no repite el numero. -->
+                <plugin>
+                    <groupId>org.sonarsource.scanner.maven</groupId>
+                    <artifactId>sonar-maven-plugin</artifactId>
+                    <version>${sonar.maven.plugin.version}</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+
+    <profiles>
+        <!-- Incluye las pruebas contra el entorno real de la catedra.
+
+             Requiere estar en la red ZeroTier y tener .env completo con las
+             credenciales de la cuenta tecnica. No se usa en CI a proposito:
+             el job no tiene ni la red ni los secretos, y no debe tenerlos. -->
+        <profile>
+            <id>catedra</id>
+            <properties>
+                <excluded.test.groups/>
+            </properties>
+        </profile>
+    </profiles>
+
+</project>

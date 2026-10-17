@@ -1,0 +1,40 @@
+# Contexto de build de Docker. Todo lo que no haga falta para compilar queda
+# afuera: acelera el build y, sobre todo, evita que un secreto o un artefacto
+# de la maquina local termine dentro de la imagen.
+
+# Secretos: el contenedor recibe su configuracion por variables de entorno,
+# nunca por un archivo copiado a la imagen.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.jks
+
+# Build local: la imagen compila de cero con el wrapper, no reutiliza target/.
+target/
+
+# Historia y metadatos de git: no se necesitan para compilar.
+.git/
+.gitignore
+.gitattributes
+.githooks/
+.github/
+
+# IDE y sistema operativo.
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Documentacion y herramientas: no entran en la imagen.
+docs/
+.claude/
+README.md
+CLAUDE.md
+
+# Docker: el Dockerfile no se copia dentro de si mismo.
+Dockerfile
+.dockerignore
+compose.yaml

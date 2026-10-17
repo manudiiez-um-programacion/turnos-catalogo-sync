@@ -1,0 +1,23 @@
+# Perfil de pruebas.
+#
+# La base de datos la provee Testcontainers: un PostgreSQL real y descartable,
+# configurado en tiempo de ejecucion por la propia prueba. H2 no se usa en
+# ningun perfil — §3 del enunciado lo prohibe como almacenamiento principal, y
+# probar contra un motor distinto al de produccion esconde errores.
+#
+# Por eso acá no se declara spring.datasource: lo inyecta el contenedor.
+
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+logging:
+  level:
+    com.um.catalogsync: DEBUG

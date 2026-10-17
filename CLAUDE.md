@@ -146,6 +146,23 @@ No volver a plantearlas. Están documentadas en `docs/adr/`.
 
 - **Paquete raíz: `com.um.catalogsync`.** Fijo, no se renombra.
 
+- **D7 — `testing` y las promociones: libertad, pero se pasa por las tres
+  ramas.** Confirmado por Slack el 2026-10-17. El profesor aclaró que pasar por
+  las tres ramas era para quien quisiera "practicar" y que las podemos manejar
+  como queramos, con una sola condición: nunca pushear directo a ellas.
+  Los roles que describió: `develop` es el entorno común del equipo, con
+  libertad de no afectar el entorno de uso real; `testing` apunta a estar
+  desplegada en una infraestructura donde los usuarios finales experimentan sin
+  tocar datos de producción; `main` es el uso real.
+  Se decidió **promover una vez por milestone**, `develop → testing → main`,
+  después de que el profesor apruebe el PR del milestone a `develop`: así las
+  tres ramas no divergen y los issues se cierran milestone por milestone
+  (los `Closes #NN` solo cierran al mergear en `main`). `testing` todavía no
+  tiene infraestructura desplegada; se la mantiene al día como paso de la
+  promoción hasta que haya un despliegue para la app KMP. El agente no abre
+  promociones sin pedido explícito del usuario. Detalle en la skill
+  `git-flujo-integrador` §9.
+
 ## Decisiones abiertas
 Los issues referencian estas decisiones por su ID (`D1`, `D4`, …). Mientras
 no estén cerradas, los issues que dependen de ellas no se pueden terminar.
@@ -169,12 +186,6 @@ La recomendación es una propuesta, no una decisión tomada.
   usuario final y CORS restringido. Bloquea #15, #16, #17. Compartida con
   el repo KMP.
 
-- **D7 — ¿Para qué se usa `testing` y quién abre las promociones?**
-  Pendiente de confirmar con el profesor. Importa porque los `Closes #NN`
-  solo cierran issues al mergear en `main`: hasta que haya una promoción,
-  los issues quedan abiertos aunque el trabajo esté hecho. No abrir
-  promociones sin pedido explícito del usuario.
-
 - **D8 — ¿Se implementa el rol administrador (opcional, §9)?**
   Recomendado: **no**, y menos en este repo: las reservas son del servicio
   de turnos. Si se decide hacerlo, es un issue nuevo allá.
@@ -191,4 +202,6 @@ Seguí la skill `git-flujo-integrador`
   `git config core.hooksPath .githooks`.
 - PRs de issue van a la rama del milestone; el PR a `develop` es por
   milestone y lo aprueba el profesor. `Closes #NN` solo en el PR a `main`.
+- Después de cada milestone se promueve `develop → testing → main` (D7),
+  siempre con confirmación del usuario.
 - Pedir confirmación antes de pushear, crear PRs o crear issues.

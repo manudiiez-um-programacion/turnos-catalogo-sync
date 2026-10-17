@@ -1,0 +1,22 @@
+# El hook es un script sh: tiene que llegar con LF incluso en Windows,
+# o el interprete falla con "bad interpreter: no such file or directory".
+.githooks/* text eol=lf
+
+# Normalizacion de fin de linea para el resto del repo.
+*.java   text diff=java
+*.kt     text
+*.xml    text
+*.yaml   text
+*.yml    text
+*.sql    text
+*.md     text
+*.json   text
+*.sh     text eol=lf
+mvnw     text eol=lf
+mvnw.cmd text eol=crlf
+
+# Binarios: que git no intente convertirlos ni diffearlos.
+*.jar  binary
+*.png  binary
+*.jpg  binary
+*.pdf  binary

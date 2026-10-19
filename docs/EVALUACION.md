@@ -3,7 +3,7 @@
 
 > Documento **generado automáticamente** por la cátedra de Programación II (UM): RepoSense + análisis de calidad de **7 dimensiones**. **No editar a mano**: se regenera en cada evaluación.
 > Rama evaluada: `main`. Análisis **heurístico** (regex + métricas) + build: es una criba para orientar la revisión, **no una nota**. La **documentación** del repositorio no se evalúa.
-> Generado: 2026-10-17.
+> Generado: 2026-10-19.
 
 ## 1. Veredicto
 
@@ -17,9 +17,11 @@
 | Clases | 74 |
 | Código dentro de clases (%POO) | 62% |
 | Funciones fuera de clases | 0 |
-| Duplicación | 23.0% |
+| Duplicación (puerta) | 4.7% |
+| Duplicación lógica | 5.1% |
+| Duplicación de boilerplate | 12.7% |
 | Cobertura | 94% |
-| Tope duro aplicado a D1 | `DUP>=15%` → D1 ≤ 50 |
+| Tope duro aplicado a D1 | `POO_BAJO` → D1 ≤ 60 |
 
 > Este informe **describe** lo que el análisis midió con los criterios ya establecidos de la materia. No es una nota.
 
@@ -178,8 +180,13 @@ El análisis encontró las siguientes señales (archivo, sin número de línea a
 - 'JpaProfessionalRepositoryAdapter.replaceAll' vacío o 'no implementado' — `src/main/java/com/um/catalogsync/professional/infrastructure/persistence/adapter/JpaProfessionalRepositoryAdapter.java`
 - 'JpaWeeklyScheduleRepositoryAdapter.replaceAll' vacío o 'no implementado' — `src/main/java/com/um/catalogsync/schedule/infrastructure/persistence/adapter/JpaWeeklyScheduleRepositoryAdapter.java`
 
-**duplicación** (1)
-- duplicación de bloques: 23.0% del código
+**duplicación** (6)
+- duplicación lógica: 4.7% · boilerplate: 12.7%
+- bloque de 8 líneas repetido 6 veces en src/test/java/com/um/catalogsync/professional/domain/model/SearchableNameTest.java:22, src/test/java/com/um/catalogsync/schedule/domain/model/TimeOfDayTest.java:48, src/test/java/com/um/catalogsync/schedule/domain/model/TimeOfDayTest.java:49 — `src/test/java/com/um/catalogsync/professional/domain/model/SearchableNameTest.java`
+- bloque de 8 líneas repetido 2 veces en src/main/java/com/um/catalogsync/professional/infrastructure/persistence/adapter/JpaProfessionalRepositoryAdapter.java:121, src/main/java/com/um/catalogsync/schedule/infrastructure/persistence/adapter/JpaWeeklyScheduleRepositoryAdapter.java:128 — `src/main/java/com/um/catalogsync/professional/infrastructure/persistence/adapter/JpaProfessionalRepositoryAdapter.java`
+- bloque de 8 líneas repetido 2 veces en src/main/java/com/um/catalogsync/professional/infrastructure/persistence/adapter/JpaProfessionalRepositoryAdapter.java:122, src/main/java/com/um/catalogsync/schedule/infrastructure/persistence/adapter/JpaWeeklyScheduleRepositoryAdapter.java:129 — `src/main/java/com/um/catalogsync/professional/infrastructure/persistence/adapter/JpaProfessionalRepositoryAdapter.java`
+- bloque de 8 líneas repetido 2 veces en src/main/java/com/um/catalogsync/professional/infrastructure/persistence/adapter/JpaProfessionalRepositoryAdapter.java:123, src/main/java/com/um/catalogsync/schedule/infrastructure/persistence/adapter/JpaWeeklyScheduleRepositoryAdapter.java:130 — `src/main/java/com/um/catalogsync/professional/infrastructure/persistence/adapter/JpaProfessionalRepositoryAdapter.java`
+- bloque de 8 líneas repetido 2 veces en src/test/java/com/um/catalogsync/professional/domain/model/SearchableNameTest.java:23, src/test/java/com/um/catalogsync/schedule/domain/model/TimeOfDayTest.java:53 — `src/test/java/com/um/catalogsync/professional/domain/model/SearchableNameTest.java`
 
 ## 6. Evolución por commit
 
@@ -197,7 +204,7 @@ xychart-beta
 |---|---|---|---|---:|---:|---:|---:|---:|
 | 1 | 2026-09-10 | `983bea3` | Ing. Daniel Quinteros | 0 | 0 | 0% | 0.0% | 0 |
 | 2 | 2026-09-10 | `ce0442b` | Ing. Daniel Quinteros | 0 | 15 | 0% | 0.0% | 0 |
-| 3 | 2026-10-17 | `03d69f4` | Manuel Diez de Oñate | 4,494 | 61 | 62% | 23.0% | 0 |
+| 3 | 2026-10-17 | `03d69f4` | Manuel Diez de Oñate | 4,494 | 61 | 62% | 4.7% | 0 |
 
 ---
 _Informe generado por la cátedra. Las dimensiones y umbrales corresponden a `calidad.py` (perfil `exigente`); el semáforo, a `CRITERIOS-CALIDAD.md`. La documentación del repositorio no se evalúa. Ante dudas, revisá el archivo señalado._

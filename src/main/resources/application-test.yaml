@@ -18,6 +18,25 @@ springdoc:
   swagger-ui:
     enabled: false
 
+# Integracion con la catedra: en pruebas no se la toca.
+#
+# La verificacion de arranque queda apagada porque las pruebas de
+# integracion levantan el contexto completo y no tienen la red privada de
+# la catedra; en CI tampoco existe. Con la verificacion encendida cada una
+# fallaria por el entorno y no por el codigo.
+#
+# Los valores igual tienen que estar: las propiedades son obligatorias y
+# sin ellas el contexto no arranca. Son marcadores y no apuntan a nada —las
+# pruebas de los adaptadores levantan WireMock y le pasan su propia URL.
+catedra:
+  api:
+    base-url: http://localhost:1
+    username: cuenta-de-prueba
+    password: clave-de-prueba
+    connect-timeout: 1s
+    read-timeout: 2s
+    verify-on-startup: false
+
 logging:
   level:
     com.um.catalogsync: DEBUG

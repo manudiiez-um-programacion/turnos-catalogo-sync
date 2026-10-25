@@ -56,6 +56,31 @@ springdoc:
   swagger-ui:
     enabled: ${SPRINGDOC_ENABLED:false}
 
+# Integracion con el servicio central de la catedra.
+#
+# La URL y las credenciales entran por variable de entorno y no tienen
+# valor por defecto: si falta una, la aplicacion no arranca. Los endpoints
+# de la referencia ya incluyen /api, asi que CATEDRA_API_BASE_URL es solo
+# el origen; si termina en /api, el arranque lo rechaza con un mensaje que
+# lo explica (ver CatedraApiProperties).
+catedra:
+  api:
+    base-url: ${CATEDRA_API_BASE_URL}
+    username: ${CATEDRA_TECHNICAL_USERNAME}
+    password: ${CATEDRA_TECHNICAL_PASSWORD}
+
+    # Timeouts holgados a proposito: el servidor se alcanza por ZeroTier y
+    # el enlace tiene ~228 ms de ida y vuelta medidos (decision D6). Sin
+    # timeout de lectura, una llamada que no responde cuelga el hilo para
+    # siempre. Los reintentos y el ajuste fino son del issue #31.
+    connect-timeout: 5s
+    read-timeout: 20s
+
+    # Al arrancar se resuelve la cuenta tecnica y, si provisioningStatus no
+    # es PROVISIONED, el arranque falla. Queda en true salvo en pruebas: el
+    # lado seguro de olvidarse de configurarlo es que la verificacion corra.
+    verify-on-startup: true
+
 logging:
   level:
     com.um.catalogsync: INFO

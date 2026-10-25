@@ -87,6 +87,15 @@ services:
       CATEDRA_API_BASE_URL: ${CATEDRA_API_BASE_URL:-}
       CATEDRA_TECHNICAL_USERNAME: ${CATEDRA_TECHNICAL_USERNAME:-}
       CATEDRA_TECHNICAL_PASSWORD: ${CATEDRA_TECHNICAL_PASSWORD:-}
+
+      # La verificacion de la cuenta tecnica al arrancar viene APAGADA dentro
+      # del contenedor, al contrario que fuera (application.yaml la deja en
+      # true). No es desconfianza del chequeo: desde el contenedor el servidor
+      # de la catedra es inalcanzable por el conflicto de subred con docker0,
+      # asi que verificar aca fallaria siempre y `docker compose up` nunca
+      # llegaria a UP. Ponerla en true en .env cuando el enrutamiento este
+      # resuelto. Ver el README.
+      CATEDRA_API_VERIFY_ON_STARTUP: ${CATEDRA_API_VERIFY_ON_STARTUP:-false}
       REDIS_HOST: ${REDIS_HOST:-}
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_USERNAME: ${REDIS_USERNAME:-}

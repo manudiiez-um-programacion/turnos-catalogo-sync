@@ -141,6 +141,27 @@ No volver a plantearlas. Están documentadas en `docs/adr/`.
   siendo necesarios para las pruebas automatizadas, que no pueden depender
   de un servicio externo.
 
+- **D1, D4 y D5 — Identidad del usuario final y autenticación entre
+  servicios.** Cerradas el 2026-10-26, las tres juntas porque están
+  encadenadas. Ver `docs/adr/0002-identidad-y-autenticacion-entre-servicios.md`.
+  - **D1:** los usuarios finales viven en el **servicio de turnos**, que es
+    dueño de la tabla, del hasheo y de la **emisión** del JWT de usuario
+    (§3.2, §4.2). Este servicio no tiene usuarios ni login: solo valida.
+    La firma se verifica con **secreto compartido HS256** (`JWT_USER_SECRET`
+    en el `.env` de los dos servicios). Limitación declarada: con secreto
+    simétrico este servicio podría falsificar un token de usuario; se acepta
+    y se documenta (§9). RS256 con clave pública queda como mejora.
+  - **D4:** entre los dos backends va un **JWT técnico interno propio del
+    proyecto** (`JWT_INTERNAL_SECRET`, autoridad `SERVICE_TURNOS`), distinto
+    del JWT técnico de la cátedra, que nunca se acepta como credencial de
+    entrada. Secretos distintos para cada identidad: la separación es
+    criptográfica. Motivo: turnos consulta la agenda en flujos sin usuario
+    presente (vencimientos, recuperación, §4.2 y §8). Trazabilidad por
+    `X-Correlation-Id` más los logs de los dos servicios.
+  - **D5:** **KMP consulta este servicio directamente** con el JWT de usuario
+    (dos URLs base en la app) y CORS restringido por `CORS_ALLOWED_ORIGINS`.
+  - Falta replicar la decisión en los otros dos repos cuando se planifiquen.
+
 - **Build: Maven** con wrapper `mvnw` versionado. El enunciado no lo impone;
   se elige por el repo de ejemplo de la cátedra, la skill y Spring Boot.
 
@@ -164,27 +185,9 @@ No volver a plantearlas. Están documentadas en `docs/adr/`.
   `git-flujo-integrador` §9.
 
 ## Decisiones abiertas
-Los issues referencian estas decisiones por su ID (`D1`, `D4`, …). Mientras
-no estén cerradas, los issues que dependen de ellas no se pueden terminar.
-La recomendación es una propuesta, no una decisión tomada.
-
-- **D1 — ¿Dónde viven el registro y login de usuarios finales?**
-  Recomendado: en el **servicio de turnos**, que ya es dueño de la propiedad
-  por usuario (§4.2); este servicio solo valida el JWT que turnos emite.
-  Falta acordar cómo se publica la clave de firma (secreto compartido o
-  JWKS). Bloquea #17, #18, #32, #33. Compartida con el repo de turnos.
-
-- **D4 — ¿JWT del usuario propagado o JWT técnico interno entre servicios?**
-  Recomendado: la API de agenda (#18) usa un **JWT técnico interno propio
-  del proyecto** (distinto del JWT técnico de la cátedra), porque es una
-  consulta de catálogo sin propiedad por usuario; la API de búsqueda usa el
-  **JWT del usuario final**. Bloquea #17, #18, #32. Compartida con turnos.
-
-- **D5 — ¿KMP consulta la búsqueda directo al catálogo o pasa por turnos?**
-  §4.1 pide que los filtros se puedan usar desde KMP sin aclarar la vía.
-  Recomendado: **KMP consulta este servicio directamente**, con JWT de
-  usuario final y CORS restringido. Bloquea #15, #16, #17. Compartida con
-  el repo KMP.
+Los issues referencian estas decisiones por su ID. Mientras no estén
+cerradas, los issues que dependen de ellas no se pueden terminar. La
+recomendación es una propuesta, no una decisión tomada.
 
 - **D8 — ¿Se implementa el rol administrador (opcional, §9)?**
   Recomendado: **no**, y menos en este repo: las reservas son del servicio

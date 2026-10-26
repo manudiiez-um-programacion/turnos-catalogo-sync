@@ -386,6 +386,87 @@ devuelve **200**, porque cae en el catch-all del frontend del servidor. Lo
 que confirma que un endpoint existe es el **401** (existe y pide
 autenticación), no el 200.
 
+### El alta de la cuenta técnica (una sola vez, a mano)
+
+La cuenta técnica identifica a este proyecto ante la cátedra y es la que usan
+**los dos backends** del alumno. Se crea una única vez a mano, con Postman o
+`curl`, contra un endpoint que no pide autenticación (§5.1 de la referencia de
+integración). La aplicación nunca da de alta la cuenta: solo se autentica con
+ella.
+
+Estando en la red ZeroTier:
+
+```bash
+curl -X POST http://IP-DEL-SERVIDOR:PUERTO-API/api/student/register \
+  -H 'Content-Type: application/json' \
+  -d '{
+        "login": "mi.usuario",
+        "password": "una-clave-propia",
+        "groupId": "Proyecto Nombre Apellido",
+        "email": "mi.usuario@example.com",
+        "langKey": "es"
+      }'
+```
+
+`groupId` se normaliza del lado de la cátedra: minúsculas ASCII, lo no
+alfanumérico pasa a `-`, y el resultado tiene que quedar con tres caracteres o
+más. `Proyecto Nombre Apellido` queda `proyecto-nombre-apellido`.
+
+La respuesta `201` trae `id_token` y un objeto `integration`. De todo eso, lo
+único que va a `.env` son las credenciales:
+
+```bash
+CATEDRA_TECHNICAL_USERNAME=mi.usuario
+CATEDRA_TECHNICAL_PASSWORD=una-clave-propia
+```
+
+**El `id_token` no se guarda en ninguna parte.** El servicio lo obtiene solo,
+haciendo `POST /api/authenticate` con `rememberMe: true` al arrancar, y lo
+mantiene únicamente en memoria: no va a la base, ni a Redis, ni al repositorio,
+ni a la app KMP. Cada reinicio vuelve a pedirlo, que cuesta un viaje y evita
+tener la credencial escrita en algún lado.
+
+Lo mismo vale para el resto del objeto `integration` —namespaces de Redis,
+consumer group, los tres topics—: el servicio lo lee en tiempo de ejecución de
+`GET /api/student/integration` y no hay nada de eso fijo en el código. Las
+variables `REDIS_*` y `KAFKA_BOOTSTRAP_SERVERS` de `.env` siguen ahí porque el
+contrato informa nombres internos (`redis.catedra.internal`) que desde ZeroTier
+no resuelven, mientras que lo que sí se alcanza es la IP del servidor; cuál de
+los dos valores usa cada adaptador se decide en los issues de Redis
+([#23](https://github.com/manudiiez-um-programacion/turnos-catalogo-sync/issues/23))
+y Kafka
+([#22](https://github.com/manudiiez-um-programacion/turnos-catalogo-sync/issues/22)).
+
+Si el JWT o las credenciales se exponen, no hay revocación: hay que crear otra
+cuenta técnica, reconfigurar los dos backends e informar a la cátedra (§5.4).
+
+### El arranque verifica la integración y falla si no está habilitada
+
+Al levantar, el servicio se autentica y lee la configuración. Si
+`provisioningStatus` no es `PROVISIONED`, **el arranque falla** con el estado en
+el mensaje:
+
+| Estado | Qué significa y qué hacer |
+| --- | --- |
+| `PENDING` | El alta se registró y la cátedra todavía no la habilitó. Esperar. |
+| `PROVISIONED` | Habilitada. Es el único estado en el que se entrega `redisPassword`. |
+| `FAILED` | El aprovisionamiento falló del lado de la cátedra. Crear otra cuenta e informar. |
+| `REVOKED` | La cuenta fue dada de baja. Crear otra cuenta e informar. |
+
+Es deliberado que no arranque: sin `redisPassword` no se pueden leer los
+cambios incrementales, así que un servicio que arranca igual fallaría más tarde
+con un error de autenticación de Redis que no menciona la causa real.
+
+Para desarrollar sin tocar la cátedra —o cuando el alta todavía no está
+hecha— se puede apagar esa verificación:
+
+```bash
+CATEDRA_API_VERIFY_ON_STARTUP=false
+```
+
+En pruebas ya viene apagada: el perfil `test` la deja en `false` porque CI no
+tiene la red privada ni las credenciales, y no debe tenerlas.
+
 ### El contenedor no alcanza al servidor, pero el host sí
 
 Este es el problema no obvio del entorno. Con la configuración de Docker por

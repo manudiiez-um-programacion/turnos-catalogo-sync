@@ -41,6 +41,7 @@
              version Maven resolveria "la ultima que haya" y la build
              dejaria de ser reproducible. -->
         <jacoco.version>0.8.15</jacoco.version>
+        <wiremock.version>3.13.1</wiremock.version>
         <sonar.maven.plugin.version>5.8.0.7211</sonar.maven.plugin.version>
 
         <!-- SonarCloud.
@@ -155,6 +156,28 @@
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>testcontainers-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Doble de la API REST de la catedra en las pruebas.
+
+             Las pruebas automatizadas no pueden depender del servidor real:
+             se llega por una red privada (D6), pide las credenciales de la
+             cuenta tecnica y en CI no existe. WireMock sirve las respuestas
+             de los ejemplos de la referencia (§5.2 y §5.3) sobre un puerto
+             local, asi que el adaptador se prueba de verdad -serializacion,
+             cabeceras, codigos de error- sin salir de la maquina.
+
+             Va el artefacto `standalone` y no `wiremock` suelto: trae Jetty
+             y Jackson renombrados adentro del jar, asi que no compiten con
+             los que ya administra el parent de Spring Boot. Con el artefacto
+             comun habria dos versiones de Jetty en el classpath de prueba.
+
+             La version va fijada porque el parent no administra WireMock. -->
+        <dependency>
+            <groupId>org.wiremock</groupId>
+            <artifactId>wiremock-standalone</artifactId>
+            <version>${wiremock.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

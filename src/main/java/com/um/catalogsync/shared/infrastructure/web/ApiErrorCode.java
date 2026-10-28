@@ -41,5 +41,40 @@ public enum ApiErrorCode {
      * <p>El caso tipico es un token de usuario final —o cualquier token sin la
      * autoridad {@code SERVICE_TURNOS}— contra la API interna.
      */
-    AUTH_FORBIDDEN
+    AUTH_FORBIDDEN,
+
+    /**
+     * 404: el profesional no esta en la copia local.
+     *
+     * <p>Mismo nombre que usa la catedra en §13.1 para la misma condicion: el
+     * servicio de turnos ya tiene codigo que lo interpreta y no necesita un
+     * caso especial por venir de aca.
+     */
+    PROFESSIONAL_NOT_FOUND,
+
+    /**
+     * 409: el profesional existe pero esta deshabilitado.
+     *
+     * <p>Distinguirlo de {@link #PROFESSIONAL_NOT_FOUND} es un criterio de
+     * aceptacion de #18: turnos tiene que rechazar una operacion nueva, pero
+     * puede seguir mostrando las reservas ya hechas con los datos historicos
+     * que guardo (§4.2).
+     *
+     * <p>409 y no 400, aunque §13.1 use 400 en la catedra: alla la condicion
+     * aparece al <b>crear un hold</b>, donde el profesional deshabilitado hace
+     * invalido el pedido. Aca es una consulta correcta sobre un recurso que
+     * existe y cuyo estado no permite la respuesta, que es lo que significa
+     * 409.
+     */
+    PROFESSIONAL_DISABLED,
+
+    /**
+     * 503: todavia no hay una version de catalogo aplicada.
+     *
+     * <p>La copia local no se puede considerar vigente, asi que no hay agenda
+     * que responder. 5xx y no 4xx porque el pedido del cliente es correcto: lo
+     * que falta es un estado de este servicio y se resuelve solo. §13.1 reserva
+     * 503 para "dependencia requerida no disponible".
+     */
+    CATALOG_NOT_SYNCHRONIZED
 }

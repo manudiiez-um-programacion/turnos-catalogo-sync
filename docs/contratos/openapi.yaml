@@ -1,0 +1,192 @@
+openapi: 3.1.0
+info:
+  title: Catalogo y sincronizacion
+  description: |-
+    Copia local del catalogo de la catedra: categorias, profesionales y horarios semanales.
+
+    Dos APIs con dos audiencias y dos credenciales distintas. La agenda vigente, bajo /api/internal, la consume el servicio de turnos con el JWT tecnico interno del proyecto y la autoridad SERVICE_TURNOS; es la unica via por la que ese servicio accede a estos datos (§3). La busqueda de profesionales la consume la app KMP con el JWT del usuario final.
+
+    Toda la API es de solo lectura: la copia local se escribe desde la sincronizacion con la catedra, nunca por HTTP.
+
+    Los errores vienen en application/problem+json con un code estable. Los clientes deciden por status y code, nunca por el texto de detail (§13).
+  version: 1.0.0
+servers:
+- url: /
+  description: El origen donde este servicio esta desplegado
+tags:
+- name: Agenda vigente (interno)
+  description: Contrato de solo lectura con el servicio de turnos. Requiere el JWT
+    tecnico interno del proyecto con la autoridad SERVICE_TURNOS.
+paths:
+  /api/internal/professionals/{professionalId}/agenda:
+    get:
+      tags:
+      - Agenda vigente (interno)
+      summary: Agenda vigente de un profesional
+      description: "Reglas de agenda sobre la copia local, nunca consultando a la\
+        \ catedra. No es disponibilidad: no incluye ocupaciones, bloqueos ni reservas,\
+        \ que son del servicio de turnos (§4.2). La respuesta trae la version local\
+        \ aplicada para que el cliente sepa sobre que copia esta trabajando."
+      operationId: agendaVigente
+      parameters:
+      - name: professionalId
+        in: path
+        description: Id del profesional en el catalogo de la catedra
+        required: true
+        schema:
+          type: integer
+          format: int64
+          example: 42
+      responses:
+        "200":
+          description: La agenda vigente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentAgenda"
+        "401":
+          description: Sin token (AUTH_TOKEN_MISSING) o token invalido (AUTH_TOKEN_INVALID)
+          content:
+            application/problem+json: {}
+        "403":
+          description: Token valido sin la autoridad SERVICE_TURNOS (AUTH_FORBIDDEN)
+          content:
+            application/problem+json: {}
+        "404":
+          description: El profesional no esta en la copia local (PROFESSIONAL_NOT_FOUND)
+          content:
+            application/problem+json: {}
+        "409":
+          description: El profesional existe pero esta deshabilitado (PROFESSIONAL_DISABLED)
+          content:
+            application/problem+json: {}
+        "503":
+          description: "Todavia no hay una version de catalogo aplicada (CATALOG_NOT_SYNCHRONIZED):\
+            \ reintentar"
+          content:
+            application/problem+json: {}
+      security:
+      - jwt-interno: []
+components:
+  schemas:
+    AgendaProfessional:
+      type: object
+      description: Datos vigentes del profesional
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 42
+        categoryId:
+          type: integer
+          format: int64
+          example: 7
+        firstName:
+          type: string
+          example: Ana
+        lastName:
+          type: string
+          example: Gomez
+        enabled:
+          type: boolean
+          description: "Siempre true: un profesional deshabilitado no devuelve agenda,\
+            \ devuelve 409 PROFESSIONAL_DISABLED. Viaja igual para que el contrato\
+            \ sea explicito."
+      required:
+      - categoryId
+      - enabled
+      - firstName
+      - id
+      - lastName
+    AgendaWeeklySchedule:
+      type: object
+      description: Franja semanal de atencion habilitada
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 315
+        dayOfWeek:
+          type: string
+          enum:
+          - MONDAY
+          - TUESDAY
+          - WEDNESDAY
+          - THURSDAY
+          - FRIDAY
+          - SATURDAY
+          - SUNDAY
+          example: MONDAY
+        startTime:
+          type: string
+          example: 09:00
+          pattern: "^\\d{2}:\\d{2}$"
+        endTime:
+          type: string
+          example: 13:00
+          pattern: "^\\d{2}:\\d{2}$"
+        slotDurationMinutes:
+          type: integer
+          format: int32
+          example: 30
+      required:
+      - dayOfWeek
+      - endTime
+      - id
+      - slotDurationMinutes
+      - startTime
+    AppliedCatalogVersion:
+      type: object
+      description: Version local de catalogo aplicada
+      properties:
+        version:
+          type: integer
+          format: int64
+          example: 128
+        appliedAt:
+          type: string
+          format: date-time
+          example: 2026-10-27T18:30:00Z
+        source:
+          type: string
+          enum:
+          - SNAPSHOT
+          - INCREMENTAL
+          example: SNAPSHOT
+      required:
+      - appliedAt
+      - source
+      - version
+    CurrentAgenda:
+      type: object
+      description: "Agenda vigente de un profesional. Son reglas de agenda, no disponibilidad:\
+        \ no incluye ocupaciones, bloqueos ni reservas, que son del servicio de turnos."
+      properties:
+        professional:
+          $ref: "#/components/schemas/AgendaProfessional"
+        schedules:
+          type: array
+          description: "Puede venir vacia: un profesional habilitado sin horarios"
+          items:
+            $ref: "#/components/schemas/AgendaWeeklySchedule"
+        catalogVersion:
+          $ref: "#/components/schemas/AppliedCatalogVersion"
+      required:
+      - catalogVersion
+      - professional
+      - schedules
+  securitySchemes:
+    jwt-interno:
+      type: http
+      description: "JWT tecnico interno del proyecto, emitido por el servicio de turnos\
+        \ y firmado con JWT_INTERNAL_SECRET. Requiere la autoridad SERVICE_TURNOS.\
+        \ No es el JWT tecnico de la catedra, que no se acepta como credencial de\
+        \ entrada."
+      scheme: bearer
+      bearerFormat: JWT
+    jwt-usuario:
+      type: http
+      description: "JWT del usuario final, emitido por el servicio de turnos al iniciar\
+        \ sesion y firmado con JWT_USER_SECRET."
+      scheme: bearer
+      bearerFormat: JWT

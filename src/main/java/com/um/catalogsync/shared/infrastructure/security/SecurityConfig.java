@@ -82,8 +82,21 @@ public class SecurityConfig {
     /** Lo unico publico sin token, junto con OpenAPI en local. */
     private static final String RUTA_HEALTH = "/actuator/health";
 
+    /**
+     * Las rutas de la documentacion.
+     *
+     * <p>{@code /v3/api-docs.yaml} va aparte y no lo cubre
+     * {@code /v3/api-docs/**}: el patron de un segmento no matchea un sufijo de
+     * archivo, asi que sin esta entrada el JSON se leia sin token y el YAML
+     * respondia 401. Es la forma que consume la exportacion del contrato
+     * versionado (#20).
+     */
     private static final String[] RUTAS_OPENAPI = {
-        "/v3/api-docs", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html"
+        "/v3/api-docs",
+        "/v3/api-docs.yaml",
+        "/v3/api-docs/**",
+        "/swagger-ui/**",
+        "/swagger-ui.html"
     };
 
     private final ApiSecurityProperties propiedades;

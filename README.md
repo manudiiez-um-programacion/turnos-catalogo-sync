@@ -163,8 +163,18 @@ sincronización con la cátedra, que es la fuente autoritativa, y nunca por HTTP
 Lo fija una prueba que le pregunta a Spring qué rutas quedaron registradas y
 falla si alguna acepta un método que escriba.
 
-El contrato completo, con DTOs y criterio de versionado, es el issue #20. El
-documento OpenAPI se lee en `/v3/api-docs` con `SPRINGDOC_ENABLED=true`.
+El contrato completo —DTOs campo por campo, autenticación, errores, garantías
+de consistencia y criterio de versionado— está en
+[`docs/contratos/catalogo-turnos.md`](docs/contratos/catalogo-turnos.md), con el
+documento OpenAPI versionado en
+[`docs/contratos/openapi.yaml`](docs/contratos/openapi.yaml). Ese `.yaml` no se
+edita a mano: lo genera el servicio y una prueba falla si deja de coincidir con
+lo que realmente responde.
+
+```bash
+# regenerarlo cuando el cambio de contrato es intencional
+./mvnw test -Dtest=ContratoOpenApiVersionadoTest -Dcontrato.exportar=true
+```
 
 ## Stack
 
@@ -687,6 +697,9 @@ ninguna `@Entity` JPA ni DTO web puede aparecer en una firma de `domain` o
 
 - [`docs/catedra/PROJECT_STATEMENT-v1.md`](docs/catedra/PROJECT_STATEMENT-v1.md) — enunciado de la cátedra.
 - [`docs/catedra/INTEGRATION_REFERENCE-v2.md`](docs/catedra/INTEGRATION_REFERENCE-v2.md) — contratos externos (REST, Redis, Kafka). Es la fuente de verdad: no se inventan campos, endpoints ni claves.
+- [`docs/contratos/catalogo-turnos.md`](docs/contratos/catalogo-turnos.md) — el contrato REST con el servicio de turnos: operaciones, DTOs, autenticación, errores, consistencia y versionado.
+- [`docs/contratos/openapi.yaml`](docs/contratos/openapi.yaml) — el mismo contrato en OpenAPI, generado por el servicio y verificado por una prueba.
+- [`docs/adr/`](docs/adr/) — decisiones de arquitectura, una por archivo, con su índice.
 - `CLAUDE.md` — contexto del repositorio y reglas no negociables.
 - `.claude/skills/` — flujo de git del proyecto y convenciones de arquitectura hexagonal.
 

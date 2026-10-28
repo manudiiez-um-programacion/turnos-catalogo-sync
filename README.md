@@ -124,6 +124,48 @@ Los rechazos vienen en `application/problem+json` con un `code` estable:
 Los clientes deciden por `status` y `code`, nunca por el texto de `detail`
 (§13 de la referencia de integración).
 
+### La agenda vigente: la única vía del servicio de turnos
+
+```
+GET /api/internal/professionals/{professionalId}/agenda
+Authorization: Bearer <jwt-tecnico-interno>
+```
+
+Devuelve los datos vigentes del profesional, sus horarios semanales
+**habilitados** y la versión local de catálogo con la que se resolvió la
+consulta. Esa versión es lo que le permite a turnos saber sobre qué copia está
+trabajando: si cambia entre dos consultas, lo sabe sin preguntar (§4.2).
+
+**No es disponibilidad.** Devuelve reglas de agenda —qué días y en qué franjas
+atiende— y nada sobre ocupaciones, bloqueos ni reservas, que son del servicio de
+turnos. Responde "tiene agenda", no "tiene cupo libre".
+
+| HTTP | `code` | Cuándo |
+| --- | --- | --- |
+| 200 | — | la agenda vigente; `schedules` puede venir vacía |
+| 404 | `PROFESSIONAL_NOT_FOUND` | no está en la copia local |
+| 409 | `PROFESSIONAL_DISABLED` | existe pero está deshabilitado: turnos debe rechazar una operación nueva |
+| 503 | `CATALOG_NOT_SYNCHRONIZED` | todavía no hay versión aplicada: reintentar |
+
+El 409 se distingue del 404 a propósito: turnos necesita saber si rechazar una
+operación nueva o si informar un dato histórico que ya guardó (§4.2).
+
+**Esta es la única vía por la que el servicio de turnos accede a estos datos.**
+§3 le prohíbe acceder a las tablas, repositorios o estructuras internas de este
+servicio, usar una base compartida como mecanismo de integración y duplicar una
+réplica del catálogo para búsquedas o reservas nuevas. El rol de base
+`catalogo` es dueño solo de su base lógica y no tiene permisos cruzados, así que
+la prohibición no depende solo de la disciplina: no hay credencial con la que
+turnos pueda leer estas tablas.
+
+**Toda la API es de solo lectura.** La copia local se escribe desde la
+sincronización con la cátedra, que es la fuente autoritativa, y nunca por HTTP.
+Lo fija una prueba que le pregunta a Spring qué rutas quedaron registradas y
+falla si alguna acepta un método que escriba.
+
+El contrato completo, con DTOs y criterio de versionado, es el issue #20. El
+documento OpenAPI se lee en `/v3/api-docs` con `SPRINGDOC_ENABLED=true`.
+
 ## Stack
 
 | | |

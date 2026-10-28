@@ -48,6 +48,30 @@ public class ProblemJsonWriter {
      */
     private static final URI TIPO = URI.create("https://www.jhipster.tech/problem/problem-with-message");
 
+    /**
+     * El cuerpo de §13, en el orden de §13.
+     *
+     * <p>Es publico y estatico porque lo comparten los dos caminos por los que
+     * este servicio produce errores: los rechazos de seguridad, que se escriben
+     * a mano desde un filtro, y las excepciones de aplicacion, que salen por el
+     * {@code @RestControllerAdvice}. Si cada uno armara su propio mapa, los dos
+     * formatos divergirian en la primera modificacion y el cliente tendria dos
+     * parseadores.
+     */
+    public static Map<String, Object> cuerpo(
+            HttpStatus status, ApiErrorCode code, String detail, String path) {
+
+        Map<String, Object> cuerpo = new LinkedHashMap<>();
+        cuerpo.put("type", TIPO.toString());
+        cuerpo.put("title", status.getReasonPhrase());
+        cuerpo.put("status", status.value());
+        cuerpo.put("detail", detail);
+        cuerpo.put("message", "error.http." + status.value());
+        cuerpo.put("path", path);
+        cuerpo.put("code", code.name());
+        return cuerpo;
+    }
+
     private final ObjectMapper jackson;
 
     public ProblemJsonWriter(ObjectMapper jackson) {
@@ -75,14 +99,7 @@ public class ProblemJsonWriter {
             return;
         }
 
-        Map<String, Object> cuerpo = new LinkedHashMap<>();
-        cuerpo.put("type", TIPO.toString());
-        cuerpo.put("title", status.getReasonPhrase());
-        cuerpo.put("status", status.value());
-        cuerpo.put("detail", detail);
-        cuerpo.put("message", "error.http." + status.value());
-        cuerpo.put("path", request.getRequestURI());
-        cuerpo.put("code", code.name());
+        Map<String, Object> cuerpo = cuerpo(status, code, detail, request.getRequestURI());
 
         response.setStatus(status.value());
         response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);

@@ -3,6 +3,7 @@ package com.um.catalogsync.shared.infrastructure.security;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.um.catalogsync.shared.infrastructure.AbstractPostgresIntegrationTest;
+import io.swagger.v3.oas.annotations.Hidden;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -62,7 +63,13 @@ class ApiSecurityIntegrationTest extends AbstractPostgresIntegrationTest {
      * "Ambiguous mapping". Tampoco sirve {@code @RequestMapping} a nivel de
      * clase para esquivar el estereotipo: Spring Framework 7 ya no considera
      * handler a una clase sin {@code @Controller}, y las rutas responden 404.
+     *
+     * <p><b>{@code @Hidden} porque el component scan tambien alcanza al
+     * documento OpenAPI.</b> Sin eso, estas dos rutas inventadas aparecerian en
+     * el contrato que publica el servicio y en el que exporta #20, donde del
+     * otro lado hay alguien implementando un cliente.
      */
+    @Hidden
     @RestController
     static class BusquedaDePrueba {
         @GetMapping(RUTA_DE_USUARIO)
@@ -71,6 +78,7 @@ class ApiSecurityIntegrationTest extends AbstractPostgresIntegrationTest {
         }
     }
 
+    @Hidden
     @RestController
     static class AgendaDePrueba {
         @GetMapping(RUTA_INTERNA)

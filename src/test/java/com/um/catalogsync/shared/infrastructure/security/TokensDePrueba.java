@@ -22,29 +22,33 @@ import java.util.List;
  * sirva en la cadena de la otra. Con un token simulado los cuatro casos del
  * criterio de aceptacion de #17 pasarian sin probar nada.
  *
+ * <p>Es publica porque la reusan las pruebas de las APIs protegidas: cada
+ * prueba de endpoint necesita un token valido, y escribir la firma en cada una
+ * multiplicaria el lugar donde hay que tocar si cambia el claim de autoridades.
+ *
  * <p>Los secretos y el emisor son los de {@code application-test.yaml}. Si se
  * cambian alla, hay que cambiarlos aca: es duplicacion a proposito, porque el
  * valor tiene que ser visible en la prueba para que se entienda cual token se
  * esta fabricando.
  */
-final class TokensDePrueba {
+public final class TokensDePrueba {
 
-    static final String SECRETO_USUARIO = "secreto-de-prueba-del-usuario-final-0123456789";
-    static final String SECRETO_INTERNO = "secreto-de-prueba-del-servicio-de-turnos-9876543210";
-    static final String EMISOR = "turnos-reservas-service";
+    public static final String SECRETO_USUARIO = "secreto-de-prueba-del-usuario-final-0123456789";
+    public static final String SECRETO_INTERNO = "secreto-de-prueba-del-servicio-de-turnos-9876543210";
+    public static final String EMISOR = "turnos-reservas-service";
 
     /** Cualquier secreto valido que no sea ninguno de los dos configurados. */
-    static final String SECRETO_AJENO = "secreto-de-otro-firmante-que-no-corresponde-000";
+    public static final String SECRETO_AJENO = "secreto-de-otro-firmante-que-no-corresponde-000";
 
     private TokensDePrueba() {}
 
     /** Token de usuario final, como lo emitiria el servicio de turnos. */
-    static String deUsuario() {
+    public static String deUsuario() {
         return firmar(SECRETO_USUARIO, claims("usuario.final", EMISOR, List.of("ROLE_USER"), "auth", 1));
     }
 
     /** Token tecnico interno con la autoridad que habilita la API interna. */
-    static String deServicioDeTurnos() {
+    public static String deServicioDeTurnos() {
         return firmar(
                 SECRETO_INTERNO,
                 claims(
@@ -62,24 +66,24 @@ final class TokensDePrueba {
      * esta bien, no esta vencido, y aun asi no habilita la ruta. Tiene que dar
      * 403 y no 401, porque la accion a tomar es distinta.
      */
-    static String deServicioSinAutoridad() {
+    public static String deServicioSinAutoridad() {
         return firmar(
                 SECRETO_INTERNO,
                 claims("otro-servicio", EMISOR, List.of("SERVICE_OTRO"), "authorities", 1));
     }
 
     /** Token de usuario vencido hace una hora. */
-    static String deUsuarioVencido() {
+    public static String deUsuarioVencido() {
         return firmar(SECRETO_USUARIO, claims("usuario.final", EMISOR, List.of("ROLE_USER"), "auth", -1));
     }
 
     /** Token de usuario firmado con un secreto que este servicio no conoce. */
-    static String deUsuarioConOtraFirma() {
+    public static String deUsuarioConOtraFirma() {
         return firmar(SECRETO_AJENO, claims("usuario.final", EMISOR, List.of("ROLE_USER"), "auth", 1));
     }
 
     /** Token de usuario bien firmado pero emitido por otro. */
-    static String deUsuarioConOtroEmisor() {
+    public static String deUsuarioConOtroEmisor() {
         return firmar(
                 SECRETO_USUARIO,
                 claims("usuario.final", "https://otro-emisor.example", List.of("ROLE_USER"), "auth", 1));

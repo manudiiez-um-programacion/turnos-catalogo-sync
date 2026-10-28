@@ -65,6 +65,65 @@ cualquiera en `DB_PASSWORD` y `POSTGRES_SUPERUSER_PASSWORD`: el resto de las
 variables son de integraciones que todavía no están implementadas y pueden
 quedar como vienen. Después, [Levantar todo con Docker Compose](#levantar-todo-con-docker-compose).
 
+Las dos variables de JWT vienen con un valor de ejemplo lo bastante largo para
+que el servicio arranque, así que no hace falta tocarlas para desarrollar. Para
+cualquier otro entorno hay que generarlas: ver
+[Seguridad de la API](#seguridad-de-la-api).
+
+## Seguridad de la API
+
+Este servicio es **resource server y nunca authorization server**: valida
+tokens y no emite ninguno. No tiene usuarios, ni registro, ni login: la
+identidad del usuario final vive en el servicio de turnos. La decisión completa,
+con sus alternativas, está en
+[`docs/adr/0002-identidad-y-autenticacion-entre-servicios.md`](docs/adr/0002-identidad-y-autenticacion-entre-servicios.md).
+
+Hay **dos identidades** y cada una tiene su propio secreto:
+
+| Quién llama | A qué | Credencial | Variable |
+| --- | --- | --- | --- |
+| app KMP | búsqueda y filtros de profesionales | JWT del usuario final, emitido por el servicio de turnos | `JWT_USER_SECRET` |
+| servicio de turnos | agenda vigente (`/api/internal/**`) | JWT técnico interno con la autoridad `SERVICE_TURNOS` | `JWT_INTERNAL_SECRET` |
+
+Los dos son HS256 con secreto compartido, y el valor tiene que ser **idéntico
+al del `.env` del servicio de turnos**. Que cada identidad se firme con un
+secreto distinto es lo que hace que un token no sirva para los endpoints de la
+otra: la separación es criptográfica, no una comprobación de claims. Generar
+cada uno con:
+
+```bash
+openssl rand -base64 48
+```
+
+Si falta uno, el arranque falla con un mensaje que nombra la variable. Es
+deliberado: un servicio arriba que no sabe validar tokens es peor que un
+servicio que no arranca.
+
+El **JWT técnico de la cátedra no participa de nada de esto**. Se usa solo como
+credencial de salida hacia el servicio central y no se acepta como credencial
+de entrada: no está firmado con ninguno de estos dos secretos, así que un
+intento de usarlo termina en 401.
+
+Público sin token queda únicamente `/actuator/health` —lo consulta el
+healthcheck de Docker Compose— y, cuando `SPRINGDOC_ENABLED=true`, la
+documentación OpenAPI. Todo lo demás exige token, incluido cualquier endpoint
+nuevo: las cadenas de filtros terminan en `authenticated()`, así que para abrir
+algo hay que nombrarlo explícitamente en `SecurityConfig`.
+
+`CORS_ALLOWED_ORIGINS` es la lista exacta de orígenes permitidos, separados por
+coma. **No acepta `"*"`**: el arranque lo rechaza.
+
+Los rechazos vienen en `application/problem+json` con un `code` estable:
+
+| HTTP | `code` | Cuándo |
+| --- | --- | --- |
+| 401 | `AUTH_TOKEN_MISSING` | no vino la cabecera `Authorization` |
+| 401 | `AUTH_TOKEN_INVALID` | token vencido, firmado con otra clave, de otro emisor o mal formado |
+| 403 | `AUTH_FORBIDDEN` | el token es válido pero no habilita esa ruta |
+
+Los clientes deciden por `status` y `code`, nunca por el texto de `detail`
+(§13 de la referencia de integración).
+
 ## Stack
 
 | | |

@@ -4,6 +4,8 @@ import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.security.SecurityScheme;
+import io.swagger.v3.oas.models.servers.Server;
+import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -35,6 +37,17 @@ public class OpenApiConfig {
     @Bean
     OpenAPI contratoDelServicio() {
         return new OpenAPI()
+                // Un servidor relativo y declarado a mano. Sin esto springdoc
+                // deduce la URL del origen que atendio la peticion, que es un
+                // dato del entorno —y en las pruebas, un puerto aleatorio—:
+                // terminaria dentro del contrato versionado y lo volveria
+                // distinto en cada generacion. La URL real depende del
+                // despliegue y esta externalizada.
+                .servers(
+                        List.of(
+                                new Server()
+                                        .url("/")
+                                        .description("El origen donde este servicio esta desplegado")))
                 .info(
                         new Info()
                                 .title("Catalogo y sincronizacion")

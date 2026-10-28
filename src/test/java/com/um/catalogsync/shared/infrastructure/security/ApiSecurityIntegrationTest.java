@@ -105,9 +105,8 @@ class ApiSecurityIntegrationTest extends AbstractPostgresIntegrationTest {
             // En el perfil test springdoc.api-docs.enabled es false, asi que la
             // regla que abre esas rutas no se aplica. Fija el limite: lo que se
             // abre es la documentacion publicada, no el patron de URL.
-            HttpResponse<String> respuesta = pedir("/v3/api-docs", null);
-
-            assertThat(respuesta.statusCode()).isEqualTo(401);
+            assertThat(pedir("/v3/api-docs", null).statusCode()).isEqualTo(401);
+            assertThat(pedir("/v3/api-docs.yaml", null).statusCode()).isEqualTo(401);
         }
     }
 

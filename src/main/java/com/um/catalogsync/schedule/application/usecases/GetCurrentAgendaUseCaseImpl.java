@@ -14,6 +14,7 @@ import com.um.catalogsync.sync.domain.ports.out.CatalogVersionRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -30,10 +31,22 @@ import org.springframework.transaction.annotation.Transactional;
  * dominio: es el mismo camino que ya usa {@code sync} para escribir
  * profesionales y categorias.
  *
- * <p><b>Transaccion de solo lectura.</b> Son tres consultas y tienen que ver
- * la misma copia: sin una transaccion, una sincronizacion que corra en medio
- * podria dejar una respuesta con los horarios de una version y el numero de
- * version de otra, que es exactamente el dato con el que turnos decide.
+ * <p><b>Solo lectura y REPEATABLE READ.</b> Son tres consultas que tienen que
+ * ver la misma copia: si una sincronizacion commitea en medio, la respuesta
+ * podria llevar el numero de una version con los horarios de otra, que es
+ * exactamente el dato con el que turnos decide.
+ *
+ * <p>Una transaccion sola no alcanza para evitarlo. El aislamiento por defecto
+ * de PostgreSQL es READ COMMITTED, y ahi <b>cada sentencia</b> toma su propia
+ * instantanea: entre leer la version y leer los horarios, el commit del
+ * snapshot (#13) se vuelve visible y la mezcla ocurre igual. Con REPEATABLE
+ * READ la instantanea se toma una sola vez, en la primera consulta, y las tres
+ * ven el mismo estado. Es lo que permite documentar una garantia de
+ * consistencia en el contrato (#20) en lugar de una intencion.
+ *
+ * <p>El costo es nulo en la practica: PostgreSQL implementa REPEATABLE READ con
+ * MVCC, sin bloqueos de lectura, y los errores de serializacion que ese nivel
+ * puede producir son solo para transacciones que escriben. Esta no escribe.
  */
 @Component
 @RequiredArgsConstructor
@@ -44,7 +57,7 @@ public class GetCurrentAgendaUseCaseImpl implements GetCurrentAgendaUseCase {
     private final CatalogVersionRepository versiones;
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public CurrentAgenda getByProfessional(Long professionalId) {
 
         // Primero la version: si no hay copia local, cualquier otra respuesta

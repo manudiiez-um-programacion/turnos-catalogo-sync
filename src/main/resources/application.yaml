@@ -81,6 +81,27 @@ catedra:
     # lado seguro de olvidarse de configurarlo es que la verificacion corra.
     verify-on-startup: true
 
+# Seguridad de la API propia (ADR 0002, issue #17).
+#
+# Dos identidades con dos secretos distintos: el JWT del usuario final que
+# emite el servicio de turnos, y el JWT tecnico interno con el que ese mismo
+# servicio llama a la agenda vigente. Ninguno es el JWT tecnico de catedra.
+#
+# Los secretos no tienen valor por defecto: si falta uno, el arranque falla
+# con un mensaje que nombra la variable. Un servicio arriba que no sabe
+# validar tokens es peor que un servicio que no arranca.
+api:
+  security:
+    user-jwt:
+      secret: ${JWT_USER_SECRET}
+      issuer: ${JWT_USER_ISSUER:turnos-reservas-service}
+    internal-jwt:
+      secret: ${JWT_INTERNAL_SECRET}
+      issuer: ${JWT_INTERNAL_ISSUER:turnos-reservas-service}
+
+    # Origenes exactos, separados por coma. Nunca "*": lo rechaza el arranque.
+    cors-allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+
 logging:
   level:
     com.um.catalogsync: INFO

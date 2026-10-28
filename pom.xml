@@ -89,6 +89,21 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+        <!-- Seguridad de la API propia: este servicio es resource server y
+             nunca authorization server. No emite tokens ni tiene usuarios:
+             la identidad del usuario final vive en el servicio de turnos
+             (ADR 0002). Solo valida firma, vigencia y claims de lo que
+             recibe.
+
+             Va el starter de oauth2-resource-server y no
+             `starter-security` suelto: trae tambien spring-security-oauth2-jose
+             y nimbus-jose-jwt, que son los que decodifican y verifican el
+             JWT. Con el starter comun habria que agregarlos a mano. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>

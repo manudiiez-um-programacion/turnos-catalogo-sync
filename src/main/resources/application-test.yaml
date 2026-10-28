@@ -37,6 +37,22 @@ catedra:
     read-timeout: 2s
     verify-on-startup: false
 
+# Seguridad: secretos fijos de prueba, no son credenciales de nada.
+#
+# Tienen que estar porque sin ellos el contexto no arranca, que es
+# justamente el comportamiento que se busca en produccion. Son distintos
+# entre si a proposito: las pruebas verifican que un token firmado con uno
+# no sirva en la cadena del otro.
+api:
+  security:
+    user-jwt:
+      secret: secreto-de-prueba-del-usuario-final-0123456789
+      issuer: turnos-reservas-service
+    internal-jwt:
+      secret: secreto-de-prueba-del-servicio-de-turnos-9876543210
+      issuer: turnos-reservas-service
+    cors-allowed-origins: http://localhost:3000
+
 logging:
   level:
     com.um.catalogsync: DEBUG

@@ -102,10 +102,14 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-}
 
-      # Seguridad de la API propia. Se define en #17 (decisiones D1 y D4).
-      JWT_ISSUER_URI: ${JWT_ISSUER_URI:-}
-      JWT_SECRET: ${JWT_SECRET:-}
-      JWT_JWKS_URI: ${JWT_JWKS_URI:-}
+      # Seguridad de la API propia (ADR 0002, se implementa en #17). Dos
+      # secretos distintos: el del JWT de usuario que emite el servicio de
+      # turnos, y el del JWT tecnico interno con el que turnos llama a la
+      # agenda vigente. Ninguno es el JWT tecnico de catedra.
+      JWT_USER_SECRET: ${JWT_USER_SECRET:-}
+      JWT_USER_ISSUER: ${JWT_USER_ISSUER:-turnos-reservas-service}
+      JWT_INTERNAL_SECRET: ${JWT_INTERNAL_SECRET:-}
+      JWT_INTERNAL_ISSUER: ${JWT_INTERNAL_ISSUER:-turnos-reservas-service}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8080}
     ports:
       - "${SERVER_PORT:-8080}:8080"

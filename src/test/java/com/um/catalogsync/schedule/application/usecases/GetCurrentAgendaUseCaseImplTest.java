@@ -12,6 +12,7 @@ import com.um.catalogsync.sync.application.exception.CatalogNotSynchronizedExcep
 import com.um.catalogsync.schedule.application.exception.ProfessionalDisabledException;
 import com.um.catalogsync.schedule.domain.model.CurrentAgenda;
 import com.um.catalogsync.schedule.domain.model.DayOfWeek;
+import com.um.catalogsync.schedule.domain.model.AvailabilityCriteria;
 import com.um.catalogsync.schedule.domain.model.WeeklySchedule;
 import com.um.catalogsync.schedule.domain.ports.out.WeeklyScheduleRepository;
 import com.um.catalogsync.sync.domain.model.CatalogVersion;
@@ -231,6 +232,10 @@ class GetCurrentAgendaUseCaseImplTest {
 
             @Override
             public long deleteByIdIn(Collection<Long> ids) {
+                throw new UnsupportedOperationException();
+            }
+            @Override
+            public List<Long> findProfessionalIdsWithAgendaIn(AvailabilityCriteria criteria) {
                 throw new UnsupportedOperationException();
             }
         };

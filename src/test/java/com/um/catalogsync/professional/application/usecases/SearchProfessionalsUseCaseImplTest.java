@@ -69,7 +69,7 @@ class SearchProfessionalsUseCaseImplTest {
     @DisplayName("el criterio llega al puerto tal como entro, sin reinterpretarse")
     void elCriterioLlegaIntacto() {
         ProfessionalSearchCriteria criteria =
-                new ProfessionalSearchCriteria(7L, "Ana GÓMEZ", true, 2, 50);
+                new ProfessionalSearchCriteria(7L, "Ana GÓMEZ", true, null, 2, 50);
         when(versiones.findCurrent()).thenReturn(Optional.of(VERSION));
         when(profesionales.search(criteria)).thenReturn(ProfessionalPage.vacia(criteria));
 

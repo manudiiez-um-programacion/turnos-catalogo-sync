@@ -8,6 +8,9 @@ import com.um.catalogsync.category.domain.ports.out.CategoryRepository;
 import com.um.catalogsync.professional.domain.model.Professional;
 import com.um.catalogsync.professional.domain.model.ProfessionalSearchCriteria;
 import com.um.catalogsync.professional.domain.ports.out.ProfessionalRepository;
+import com.um.catalogsync.schedule.domain.model.DayOfWeek;
+import com.um.catalogsync.schedule.domain.model.WeeklySchedule;
+import com.um.catalogsync.schedule.domain.ports.out.WeeklyScheduleRepository;
 import com.um.catalogsync.shared.infrastructure.AbstractPostgresIntegrationTest;
 import com.um.catalogsync.shared.infrastructure.security.TokensDePrueba;
 import com.um.catalogsync.sync.domain.model.CatalogVersionSource;
@@ -21,6 +24,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -74,6 +78,9 @@ class ProfessionalSearchApiIntegrationTest extends AbstractPostgresIntegrationTe
 
     @Autowired
     private ProfessionalRepository profesionales;
+
+    @Autowired
+    private WeeklyScheduleRepository horarios;
 
     @Autowired
     private CatalogVersionRepository versiones;
@@ -281,6 +288,131 @@ class ProfessionalSearchApiIntegrationTest extends AbstractPostgresIntegrationTe
     }
 
     @Nested
+    @DisplayName("El filtro de disponibilidad")
+    class Disponibilidad {
+
+        @Test
+        @DisplayName("por dia trae solo a quien tiene agenda habilitada ese dia")
+        void porDia() {
+            dadoUnCatalogo();
+
+            assertThat(idsDe(cuerpoDe("?availableOn=MONDAY"))).containsExactly(10L);
+            assertThat(idsDe(cuerpoDe("?availableOn=WEDNESDAY"))).containsExactly(20L);
+            // Nadie atiende los domingos, y eso es un 200 con content vacio.
+            assertThat(cuerpoDe("?availableOn=SUNDAY").path("content")).isEmpty();
+        }
+
+        @Test
+        @DisplayName("por franja se cruza por solapamiento")
+        void porFranja() {
+            dadoUnCatalogo();
+
+            // 10:00-11:00 cae dentro de la mañana de Ana (09:00-13:00).
+            assertThat(idsDe(cuerpoDe("?availableFrom=10:00&availableTo=11:00")))
+                    .containsExactly(10L);
+            // El borde exacto no cuenta: la mañana de Ana termina 13:00.
+            assertThat(cuerpoDe("?availableFrom=13:00&availableTo=14:00").path("content"))
+                    .isEmpty();
+        }
+
+        @Test
+        @DisplayName("se combina con los otros tres sin perder el paginado")
+        void seCombina() {
+            dadoUnCatalogo();
+
+            JsonNode cuerpo = cuerpoDe(
+                    "?categoryId=" + CLINICA + "&name=gomez&enabled=true&availableOn=MONDAY"
+                            + "&availableFrom=09:00&availableTo=10:00&page=0&size=5");
+
+            assertThat(idsDe(cuerpo)).containsExactly(10L);
+            assertThat(cuerpo.path("page").path("number").asInt()).isZero();
+            assertThat(cuerpo.path("page").path("size").asInt()).isEqualTo(5);
+            assertThat(cuerpo.path("page").path("totalElements").asLong()).isEqualTo(1L);
+        }
+
+        @Test
+        @DisplayName("un deshabilitado con agenda no esta disponible")
+        void elDeshabilitadoNoEstaDisponible() {
+            dadoUnCatalogo();
+            // Nunez esta deshabilitado y recibe agenda el mismo lunes que Ana.
+            horarios.upsert(horario(300L, 12L, DayOfWeek.MONDAY, "09:00", "13:00"));
+
+            assertThat(idsDe(cuerpoDe("?availableOn=MONDAY"))).containsExactly(10L);
+            // Y pedirlo explicito da vacio, no un error: estar disponible
+            // incluye estar habilitado.
+            assertThat(cuerpoDe("?availableOn=MONDAY&enabled=false").path("content")).isEmpty();
+        }
+
+        @Test
+        @DisplayName("la respuesta sigue trayendo la version de catalogo")
+        void sigueTrayendoLaVersion() {
+            dadoUnCatalogo();
+
+            assertThat(cuerpoDe("?availableOn=MONDAY").path("catalogVersion").path("version")
+                            .asLong())
+                    .isEqualTo(VERSION);
+        }
+
+        @ParameterizedTest
+        @ValueSource(
+                strings = {
+                    "?availableFrom=13:00&availableTo=09:00",
+                    "?availableFrom=09:00&availableTo=09:00",
+                    "?availableFrom=09:00",
+                    "?availableTo=13:00",
+                    "?availableOn=LUNES",
+                    "?availableOn=monday",
+                    "?availableFrom=9am&availableTo=13:00"
+                })
+        @DisplayName("un filtro que no se entiende da 400 INVALID_AVAILABILITY_FILTER")
+        void filtroInvalido(String query) {
+            dadoUnCatalogo();
+
+            HttpResponse<String> respuesta = buscar(query, TokensDePrueba.deUsuario());
+
+            // Codigo propio y no VALIDATION_ERROR: estas son cadenas bien
+            // formadas que el binding de Spring acepta y solo el dominio sabe
+            // rechazar, y el cliente tiene que poder distinguir "mande mal la
+            // disponibilidad" de "mande mal el paginado".
+            assertThat(respuesta.statusCode()).isEqualTo(400);
+            assertThat(problema(respuesta, "code")).isEqualTo("INVALID_AVAILABILITY_FILTER");
+            assertThat(respuesta.headers().firstValue("content-type"))
+                    .hasValueSatisfying(
+                            tipo -> assertThat(tipo).startsWith("application/problem+json"));
+        }
+
+        @Test
+        @DisplayName("el detalle dice cual de los cuatro problemas fue")
+        void elDetalleExplica() {
+            dadoUnCatalogo();
+
+            assertThat(problema(
+                            buscar(
+                                    "?availableFrom=13:00&availableTo=09:00",
+                                    TokensDePrueba.deUsuario()),
+                            "detail"))
+                    .contains("posterior");
+            assertThat(problema(
+                            buscar("?availableFrom=09:00", TokensDePrueba.deUsuario()), "detail"))
+                    .contains("completo");
+            assertThat(problema(
+                            buscar("?availableOn=LUNES", TokensDePrueba.deUsuario()), "detail"))
+                    .contains("LUNES");
+        }
+
+        @Test
+        @DisplayName("sin parametros de disponibilidad no hay filtro: el catalogo completo")
+        void sinParametrosNoFiltra() {
+            dadoUnCatalogo();
+
+            // Los cuatro profesionales, incluidos los dos que no tienen
+            // ningun horario: la disponibilidad es opcional como los otros.
+            assertThat(idsDe(cuerpoDe(""))).containsExactlyInAnyOrder(10L, 11L, 12L, 20L);
+            assertThat(idsDe(cuerpoDe("?availableOn=&availableFrom=&availableTo=")))
+                    .containsExactlyInAnyOrder(10L, 11L, 12L, 20L);
+        }
+    }
+    @Nested
     @DisplayName("Sin catalogo aplicado")
     class SinCatalogo {
 
@@ -342,6 +474,27 @@ class ProfessionalSearchApiIntegrationTest extends AbstractPostgresIntegrationTe
         profesionales.upsert(profesional(11L, "Ana", "Gómez", CLINICA, false));
         profesionales.upsert(profesional(12L, "Luis", "Nunez", CLINICA, false));
         profesionales.upsert(profesional(20L, "Bruno", "Alvarez", DERMATOLOGIA, true));
+
+        // Agenda solo para dos: Ana los lunes a la mañana y Bruno los
+        // miercoles a la tarde. Los otros dos quedan sin horarios, que es uno
+        // de los casos borde del filtro de disponibilidad.
+        horarios.upsert(horario(100L, 10L, DayOfWeek.MONDAY, "09:00", "13:00"));
+        horarios.upsert(horario(200L, 20L, DayOfWeek.WEDNESDAY, "14:00", "18:00"));
+    }
+
+    private static WeeklySchedule horario(
+            Long id, Long profesionalId, DayOfWeek dia, String desde, String hasta) {
+        return WeeklySchedule.builder()
+                .id(id)
+                .professionalId(profesionalId)
+                .dayOfWeek(dia)
+                .startTime(LocalTime.parse(desde))
+                .endTime(LocalTime.parse(hasta))
+                .slotDurationMinutes(30)
+                .enabled(true)
+                .createdAt(CUANDO)
+                .updatedAt(CUANDO)
+                .build();
     }
 
     private void categoria(long id, String nombre) {

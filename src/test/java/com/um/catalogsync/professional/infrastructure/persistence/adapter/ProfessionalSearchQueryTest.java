@@ -261,7 +261,8 @@ class ProfessionalSearchQueryTest extends AbstractPostgresIntegrationTest {
 
     private static ProfessionalSearchCriteria criterio(
             Long categoria, String nombre, Boolean habilitado, int pagina, int tamanio) {
-        return new ProfessionalSearchCriteria(categoria, nombre, habilitado, pagina, tamanio);
+        return new ProfessionalSearchCriteria(
+                categoria, nombre, habilitado, null, pagina, tamanio);
     }
 
     private static List<Long> ids(ProfessionalPage pagina) {

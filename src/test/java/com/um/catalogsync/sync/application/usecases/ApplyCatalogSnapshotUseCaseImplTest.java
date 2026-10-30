@@ -9,6 +9,7 @@ import com.um.catalogsync.professional.domain.model.Professional;
 import com.um.catalogsync.professional.domain.model.ProfessionalPage;
 import com.um.catalogsync.professional.domain.model.ProfessionalSearchCriteria;
 import com.um.catalogsync.professional.domain.ports.out.ProfessionalRepository;
+import com.um.catalogsync.schedule.domain.model.AvailabilityCriteria;
 import com.um.catalogsync.schedule.domain.model.WeeklySchedule;
 import com.um.catalogsync.schedule.domain.ports.out.WeeklyScheduleRepository;
 import com.um.catalogsync.sync.CatalogSnapshotFixtures;
@@ -217,6 +218,10 @@ class ApplyCatalogSnapshotUseCaseImplTest {
 
         @Override
         public long deleteByIdIn(Collection<Long> ids) {
+            throw new UnsupportedOperationException();
+        }
+        @Override
+        public List<Long> findProfessionalIdsWithAgendaIn(AvailabilityCriteria criteria) {
             throw new UnsupportedOperationException();
         }
     }

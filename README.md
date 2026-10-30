@@ -578,6 +578,47 @@ CATEDRA_API_VERIFY_ON_STARTUP=false
 En pruebas ya viene apagada: el perfil `test` la deja en `false` porque CI no
 tiene la red privada ni las credenciales, y no debe tenerlas.
 
+### El arranque sincroniza el catálogo si la base está vacía
+
+Es otra cosa que pasa al levantar, y conviene no confundirla con la anterior:
+la verificación de la cuenta técnica **detiene el arranque**; la
+sincronización inicial **no**.
+
+Si no hay versión de catálogo aplicada —base recién creada—, el servicio pide
+el snapshot completo a la cátedra (§6.1). Si ya hay versión, no pide nada:
+mantenerla al día a partir de ahí es trabajo de la sincronización incremental.
+
+| | Verificación de la cuenta técnica | Sincronización inicial |
+| --- | --- | --- |
+| Cuándo corre | Siempre al arrancar | Solo si no hay versión local |
+| Si falla | El proceso termina con error | El servicio queda arriba, sin catálogo |
+| Dónde se ve | En el log, al arrancar | `/actuator/health` y la tabla `sync_run` |
+| Se apaga con | `CATEDRA_API_VERIFY_ON_STARTUP=false` | `SYNC_STARTUP_ENABLED=false` |
+
+La diferencia tiene un motivo: sin configuración técnica no hay nada que este
+servicio pueda hacer nunca, mientras que sin catálogo todavía atiende, valida
+tokens e informa su estado. Y tumbar el proceso cuando la cátedra no responde
+—el fallo más probable, porque el servidor solo existe dentro de ZeroTier—
+dejaría el contenedor reiniciándose en ciclo contra un servidor que no va a
+contestar.
+
+El trabajo corre en un hilo aparte, así que no atrasa el arranque ni la señal
+de "listo" que lee un orquestador. Para ver en qué estado quedó:
+
+```bash
+# con detalle solo en el perfil local; fuera de ahí responde el UP pelado
+curl -s http://localhost:8080/actuator/health | jq '.components.catalogSync'
+# { "status": "UP", "details": { "estado": "SIN_CATALOGO", ... } }
+```
+
+`SIN_CATALOGO` es el estado degradado: el servicio responde, pero las búsquedas
+no van a devolver resultados hasta que una sincronización termine bien. El
+motivo del fallo queda en `sync_run` y `sync_error`, con un código estable.
+
+Dentro de Docker Compose esto **va a fallar** mientras el enrutamiento no esté
+resuelto, por lo que explica la sección siguiente. Se deja encendido igual: un
+`WARN` que nombra el problema es mejor que un catálogo vacío en silencio.
+
 ### El contenedor no alcanza al servidor, pero el host sí
 
 Este es el problema no obvio del entorno. Con la configuración de Docker por

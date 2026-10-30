@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.um.catalogsync.category.domain.model.ProfessionalCategory;
 import com.um.catalogsync.category.domain.ports.out.CategoryRepository;
 import com.um.catalogsync.professional.domain.model.Professional;
+import com.um.catalogsync.professional.domain.model.ProfessionalPage;
+import com.um.catalogsync.professional.domain.model.ProfessionalSearchCriteria;
 import com.um.catalogsync.professional.domain.ports.out.ProfessionalRepository;
 import com.um.catalogsync.schedule.domain.model.WeeklySchedule;
 import com.um.catalogsync.schedule.domain.ports.out.WeeklyScheduleRepository;
@@ -173,6 +175,11 @@ class ApplyCatalogSnapshotUseCaseImplTest {
         public List<Professional> replaceAll(Collection<Professional> professionals) {
             pasos.add("profesionales.replaceAll(" + professionals.size() + ")");
             return List.copyOf(professionals);
+        }
+
+        @Override
+        public ProfessionalPage search(ProfessionalSearchCriteria criteria) {
+            throw new UnsupportedOperationException();
         }
 
         @Override

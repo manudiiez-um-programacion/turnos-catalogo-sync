@@ -1,5 +1,6 @@
 package com.um.catalogsync.schedule.infrastructure.web.dto;
 
+import com.um.catalogsync.shared.infrastructure.web.dto.CatalogVersionResponse;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 

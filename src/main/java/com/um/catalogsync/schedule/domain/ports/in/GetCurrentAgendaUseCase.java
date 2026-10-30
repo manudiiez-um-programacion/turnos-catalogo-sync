@@ -12,7 +12,7 @@ public interface GetCurrentAgendaUseCase {
      *     si no esta en la copia local
      * @throws com.um.catalogsync.schedule.application.exception.ProfessionalDisabledException si
      *     esta pero deshabilitado
-     * @throws com.um.catalogsync.schedule.application.exception.CatalogNotSynchronizedException si
+     * @throws com.um.catalogsync.sync.application.exception.CatalogNotSynchronizedException si
      *     todavia no hay una version local aplicada
      */
     CurrentAgenda getByProfessional(Long professionalId);

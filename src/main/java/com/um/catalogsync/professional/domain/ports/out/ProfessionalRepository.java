@@ -1,6 +1,8 @@
 package com.um.catalogsync.professional.domain.ports.out;
 
 import com.um.catalogsync.professional.domain.model.Professional;
+import com.um.catalogsync.professional.domain.model.ProfessionalPage;
+import com.um.catalogsync.professional.domain.model.ProfessionalSearchCriteria;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -29,6 +31,29 @@ public interface ProfessionalRepository {
     Optional<Professional> findById(Long id);
 
     List<Professional> findAll();
+
+    /**
+     * Busca por categoria, nombre y estado, paginado.
+     *
+     * <p><b>Se resuelve entero en la base.</b> Filtrar en memoria sobre
+     * {@link #findAll()} daria el mismo resultado hoy y seria una trampa: el
+     * costo crece con el catalogo completo y no con la pagina pedida, y el
+     * indice de trigramas que la migracion de M1 creo para esto no se usaria
+     * nunca. Los filtros que vienen en {@code null} no se traducen a ninguna
+     * condicion, en lugar de a un {@code :param IS NULL OR ...}, para que el
+     * planificador vea solo las condiciones reales.
+     *
+     * <p><b>El orden es parte del contrato y tiene que ser total:</b>
+     * apellido, nombre e id, ascendente. Los dos primeros son lo que un
+     * usuario espera de un listado alfabetico; el id esta para desempatar.
+     * Sin desempate, dos profesionales homonimos pueden salir en cualquier
+     * orden entre dos consultas, y el que esta justo en el borde de la pagina
+     * aparece repetido o se pierde al pedir la pagina siguiente.
+     *
+     * @param criteria filtros y pagina; el nombre ya viene normalizado
+     * @return la pagina pedida, posiblemente vacia, con el total sin paginar
+     */
+    ProfessionalPage search(ProfessionalSearchCriteria criteria);
 
     /**
      * Reemplaza por completo el contenido local de profesionales.

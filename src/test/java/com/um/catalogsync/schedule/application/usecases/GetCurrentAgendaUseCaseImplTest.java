@@ -5,8 +5,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.um.catalogsync.professional.application.exception.ProfessionalNotFoundException;
 import com.um.catalogsync.professional.domain.model.Professional;
+import com.um.catalogsync.professional.domain.model.ProfessionalPage;
+import com.um.catalogsync.professional.domain.model.ProfessionalSearchCriteria;
 import com.um.catalogsync.professional.domain.ports.out.ProfessionalRepository;
-import com.um.catalogsync.schedule.application.exception.CatalogNotSynchronizedException;
+import com.um.catalogsync.sync.application.exception.CatalogNotSynchronizedException;
 import com.um.catalogsync.schedule.application.exception.ProfessionalDisabledException;
 import com.um.catalogsync.schedule.domain.model.CurrentAgenda;
 import com.um.catalogsync.schedule.domain.model.DayOfWeek;
@@ -185,6 +187,11 @@ class GetCurrentAgendaUseCaseImplTest {
 
             @Override
             public List<Professional> replaceAll(Collection<Professional> ps) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public ProfessionalPage search(ProfessionalSearchCriteria criteria) {
                 throw new UnsupportedOperationException();
             }
 

@@ -14,10 +14,106 @@ servers:
 - url: /
   description: El origen donde este servicio esta desplegado
 tags:
+- name: Profesionales
+  description: Busqueda y filtros sobre la copia local del catalogo. Requiere el JWT
+    del usuario final.
 - name: Agenda vigente (interno)
   description: Contrato de solo lectura con el servicio de turnos. Requiere el JWT
     tecnico interno del proyecto con la autoridad SERVICE_TURNOS.
 paths:
+  /api/professionals:
+    get:
+      tags:
+      - Profesionales
+      summary: Buscar profesionales en la copia local
+      description: "Filtros opcionales y combinables: categoria exacta, coincidencia\
+        \ parcial de nombre insensible a mayusculas y acentos sobre nombre y apellido,\
+        \ y estado habilitado. Se resuelve solo con datos locales, nunca consultando\
+        \ a la catedra (§6.2). El orden es fijo —apellido, nombre, id ascendente—\
+        \ para que el paginado sea estable. Una pagina vacia es una respuesta valida.\
+        \ La respuesta trae la version local de catalogo con la que se resolvio."
+      operationId: buscar
+      parameters:
+      - name: categoryId
+        in: query
+        description: Id de la categoria profesional
+        required: false
+        schema:
+          type: integer
+          format: int64
+          description: Id de la categoria profesional
+          example: 7
+        example: 7
+      - name: name
+        in: query
+        description: "Coincidencia parcial sobre nombre y apellido, insensible a mayusculas\
+          \ y acentos: 'gomez' encuentra a 'Gómez'"
+        required: false
+        schema:
+          type: string
+          description: "Coincidencia parcial sobre nombre y apellido, insensible a\
+            \ mayusculas y acentos: 'gomez' encuentra a 'Gómez'"
+          example: ana gomez
+          maxLength: 120
+          minLength: 0
+        example: ana gomez
+      - name: enabled
+        in: query
+        description: "true solo habilitados, false solo deshabilitados"
+        required: false
+        schema:
+          type: boolean
+          description: "true solo habilitados, false solo deshabilitados"
+          example: true
+        example: true
+      - name: page
+        in: query
+        description: "Pagina, base cero"
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+          description: "Pagina, base cero"
+          example: 0
+          minimum: 0
+        example: 0
+      - name: size
+        in: query
+        description: Elementos por pagina
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 20
+          description: Elementos por pagina
+          example: 20
+          maximum: 100
+          minimum: 1
+        example: 20
+      responses:
+        "200":
+          description: "La pagina de resultados, posiblemente vacia"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfessionalSearchResult"
+        "400":
+          description: "Parametros invalidos (VALIDATION_ERROR): pagina negativa,\
+            \ tamaño fuera de rango o un tipo que no corresponde"
+          content:
+            application/problem+json: {}
+        "401":
+          description: Sin token (AUTH_TOKEN_MISSING) o token invalido (AUTH_TOKEN_INVALID)
+          content:
+            application/problem+json: {}
+        "503":
+          description: "Todavia no hay una version de catalogo aplicada (CATALOG_NOT_SYNCHRONIZED):\
+            \ reintentar"
+          content:
+            application/problem+json: {}
+      security:
+      - jwt-usuario: []
   /api/internal/professionals/{professionalId}/agenda:
     get:
       tags:
@@ -69,6 +165,97 @@ paths:
       - jwt-interno: []
 components:
   schemas:
+    AppliedCatalogVersion:
+      type: object
+      description: Version local de catalogo aplicada
+      properties:
+        version:
+          type: integer
+          format: int64
+          example: 128
+        appliedAt:
+          type: string
+          format: date-time
+          example: 2026-10-27T18:30:00Z
+        source:
+          type: string
+          enum:
+          - SNAPSHOT
+          - INCREMENTAL
+          example: SNAPSHOT
+      required:
+      - appliedAt
+      - source
+      - version
+    PageMetadata:
+      type: object
+      description: Metadatos de paginado
+      properties:
+        number:
+          type: integer
+          format: int32
+          example: 0
+        size:
+          type: integer
+          format: int32
+          example: 20
+        totalElements:
+          type: integer
+          format: int64
+          example: 37
+        totalPages:
+          type: integer
+          format: int32
+          example: 2
+      required:
+      - number
+      - size
+      - totalElements
+      - totalPages
+    Professional:
+      type: object
+      description: Profesional de la copia local del catalogo
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 42
+        categoryId:
+          type: integer
+          format: int64
+          example: 7
+        firstName:
+          type: string
+          example: Ana
+        lastName:
+          type: string
+          example: Gomez
+        enabled:
+          type: boolean
+          example: true
+      required:
+      - categoryId
+      - enabled
+      - firstName
+      - id
+      - lastName
+    ProfessionalSearchResult:
+      type: object
+      description: "Pagina de profesionales de la copia local, con la version de catalogo\
+        \ con la que se resolvio. Nunca consulta a la catedra."
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/Professional"
+        page:
+          $ref: "#/components/schemas/PageMetadata"
+        catalogVersion:
+          $ref: "#/components/schemas/AppliedCatalogVersion"
+      required:
+      - catalogVersion
+      - content
+      - page
     AgendaProfessional:
       type: object
       description: Datos vigentes del profesional
@@ -135,28 +322,6 @@ components:
       - id
       - slotDurationMinutes
       - startTime
-    AppliedCatalogVersion:
-      type: object
-      description: Version local de catalogo aplicada
-      properties:
-        version:
-          type: integer
-          format: int64
-          example: 128
-        appliedAt:
-          type: string
-          format: date-time
-          example: 2026-10-27T18:30:00Z
-        source:
-          type: string
-          enum:
-          - SNAPSHOT
-          - INCREMENTAL
-          example: SNAPSHOT
-      required:
-      - appliedAt
-      - source
-      - version
     CurrentAgenda:
       type: object
       description: "Agenda vigente de un profesional. Son reglas de agenda, no disponibilidad:\

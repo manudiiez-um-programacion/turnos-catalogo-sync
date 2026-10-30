@@ -22,6 +22,18 @@ package com.um.catalogsync.shared.infrastructure.web;
  */
 public enum ApiErrorCode {
 
+    /**
+     * 400: los parametros de la peticion no son aceptables.
+     *
+     * <p>Un solo codigo para todas las violaciones de forma —una pagina
+     * negativa, un tamaño fuera de rango, un {@code categoryId} que no es un
+     * numero—, y el {@code detail} dice cual. Un codigo por campo haria que
+     * agregar un filtro fuera un cambio de contrato, cuando lo que el cliente
+     * tiene que decidir es siempre lo mismo: corregir el pedido antes de
+     * reintentar.
+     */
+    VALIDATION_ERROR,
+
     /** 401: no vino cabecera {@code Authorization} con un Bearer. */
     AUTH_TOKEN_MISSING,
 

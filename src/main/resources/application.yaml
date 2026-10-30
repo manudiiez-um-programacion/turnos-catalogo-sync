@@ -32,10 +32,21 @@ spring:
       # Las tablas las crean las migraciones de db/migration, nunca
       # Hibernate. validate solo verifica que el mapeo coincida.
       ddl-auto: validate
-    properties:
-      hibernate:
-        jdbc:
-          time_zone: UTC
+
+    # NO poner hibernate.jdbc.time_zone. Estuvo en UTC hasta el issue #16 y
+    # corrompia los horarios: Hibernate aplica ese ajuste tambien a las
+    # columnas TIME, asi que un horario de 09:00 se guardaba como 12:00 si la
+    # app corria en -03:00. El ida y vuelta por JPA lo tapaba —se escribia y
+    # se leia con el mismo desplazamiento— pero la fila quedaba mal para
+    # cualquier consulta SQL, el valor dependia de la zona de la maquina y las
+    # comparaciones del filtro de disponibilidad (#16) daban cualquier cosa.
+    #
+    # Las horas de atencion son locales y sin zona (§4 de la referencia): una
+    # regla semanal no ocurre en un instante, asi que no hay nada que
+    # convertir. Y los instantes no necesitan el ajuste: todas las columnas de
+    # fecha son TIMESTAMPTZ y se mapean a Instant, que guarda el momento
+    # absoluto sin depender de esta propiedad. Hay una prueba que falla si los
+    # horarios se vuelven a guardar desplazados.
 
 server:
   port: ${SERVER_PORT:8080}

@@ -3,10 +3,10 @@ package com.um.catalogsync.schedule.infrastructure.web.mapper;
 import com.um.catalogsync.professional.domain.model.Professional;
 import com.um.catalogsync.schedule.domain.model.CurrentAgenda;
 import com.um.catalogsync.schedule.domain.model.WeeklySchedule;
-import com.um.catalogsync.schedule.infrastructure.web.dto.CatalogVersionResponse;
 import com.um.catalogsync.schedule.infrastructure.web.dto.CurrentAgendaResponse;
 import com.um.catalogsync.schedule.infrastructure.web.dto.ProfessionalResponse;
 import com.um.catalogsync.schedule.infrastructure.web.dto.WeeklyScheduleResponse;
+import com.um.catalogsync.shared.infrastructure.web.dto.CatalogVersionResponse;
 import java.time.format.DateTimeFormatter;
 import org.springframework.stereotype.Component;
 
@@ -37,7 +37,7 @@ public class CurrentAgendaWebMapper {
         return new CurrentAgendaResponse(
                 toResponse(agenda.professional()),
                 agenda.schedules().stream().map(this::toResponse).toList(),
-                versionDe(agenda));
+                CatalogVersionResponse.from(agenda.catalogVersion()));
     }
 
     private ProfessionalResponse toResponse(Professional profesional) {
@@ -56,12 +56,5 @@ public class CurrentAgendaWebMapper {
                 HORA.format(horario.getStartTime()),
                 HORA.format(horario.getEndTime()),
                 horario.getSlotDurationMinutes());
-    }
-
-    private CatalogVersionResponse versionDe(CurrentAgenda agenda) {
-        return new CatalogVersionResponse(
-                agenda.catalogVersion().getVersion(),
-                agenda.catalogVersion().getAppliedAt(),
-                agenda.catalogVersion().getSource().name());
     }
 }

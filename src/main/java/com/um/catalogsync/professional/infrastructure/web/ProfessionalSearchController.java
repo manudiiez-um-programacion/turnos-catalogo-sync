@@ -55,10 +55,19 @@ public class ProfessionalSearchController {
     private final ProfessionalSearchWebMapper mapper;
 
     /**
-     * Busca profesionales por categoria, nombre y estado, paginado.
+     * Busca profesionales por categoria, nombre, estado y disponibilidad,
+     * paginado.
      *
-     * <p>Los tres filtros son opcionales y combinables: sin ninguno devuelve
+     * <p>Los cuatro filtros son opcionales y combinables: sin ninguno devuelve
      * el catalogo completo paginado.
+     *
+     * <p><b>La disponibilidad responde "tiene agenda", no "tiene cupo
+     * libre".</b> Un profesional esta disponible cuando esta habilitado y
+     * tiene al menos un horario habilitado en el dia o la franja pedidos. No
+     * considera ocupaciones, bloqueos ni reservas, que este servicio no tiene
+     * y no debe tener: combinar la agenda con las ocupaciones para producir
+     * turnos libres es del servicio de turnos (§4.2). Es un prefiltro, util
+     * para no ofrecer profesionales que no atienden nunca ese dia.
      *
      * <p><b>Orden fijo: apellido, nombre, id, ascendente.</b> No se recibe del
      * cliente, y no es una limitacion por ahorrar trabajo. Un {@code ?sort=}
@@ -74,11 +83,19 @@ public class ProfessionalSearchController {
             description =
                     "Filtros opcionales y combinables: categoria exacta, coincidencia parcial"
                             + " de nombre insensible a mayusculas y acentos sobre nombre y"
-                            + " apellido, y estado habilitado. Se resuelve solo con datos"
-                            + " locales, nunca consultando a la catedra (§6.2). El orden es"
-                            + " fijo —apellido, nombre, id ascendente— para que el paginado sea"
-                            + " estable. Una pagina vacia es una respuesta valida. La respuesta"
-                            + " trae la version local de catalogo con la que se resolvio.",
+                            + " apellido, estado habilitado y disponibilidad por dia o franja"
+                            + " horaria. Se resuelve solo con datos locales, nunca consultando"
+                            + " a la catedra (§6.2).\n\n"
+                            + "La disponibilidad responde 'tiene agenda', NO 'tiene cupo"
+                            + " libre': un profesional cumple el filtro si esta habilitado y"
+                            + " tiene al menos un horario habilitado en el dia o la franja"
+                            + " pedidos. No considera ocupaciones, bloqueos ni reservas, que"
+                            + " son del servicio de turnos (§4.2). El rango se cruza por"
+                            + " solapamiento.\n\n"
+                            + "El orden es fijo —apellido, nombre, id ascendente— para que el"
+                            + " paginado sea estable. Una pagina vacia es una respuesta"
+                            + " valida. La respuesta trae la version local de catalogo con la"
+                            + " que se resolvio.",
             security = @SecurityRequirement(name = OpenApiConfig.SEGURIDAD_USUARIO))
     @ApiResponses({
         @ApiResponse(
@@ -87,8 +104,10 @@ public class ProfessionalSearchController {
         @ApiResponse(
                 responseCode = "400",
                 description =
-                        "Parametros invalidos (VALIDATION_ERROR): pagina negativa, tamaño"
-                                + " fuera de rango o un tipo que no corresponde",
+                        "Parametros invalidos. VALIDATION_ERROR: pagina negativa, tamaño"
+                                + " fuera de rango o un tipo que no corresponde."
+                                + " INVALID_AVAILABILITY_FILTER: dia inexistente, hora mal"
+                                + " formada, media franja o rango invertido",
                 content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE)),
         @ApiResponse(
                 responseCode = "401",

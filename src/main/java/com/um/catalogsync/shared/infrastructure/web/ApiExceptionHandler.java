@@ -1,6 +1,7 @@
 package com.um.catalogsync.shared.infrastructure.web;
 
 import com.um.catalogsync.professional.application.exception.ProfessionalNotFoundException;
+import com.um.catalogsync.schedule.domain.model.InvalidAvailabilityFilterException;
 import com.um.catalogsync.sync.application.exception.CatalogNotSynchronizedException;
 import com.um.catalogsync.schedule.application.exception.ProfessionalDisabledException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -83,6 +84,26 @@ public class ApiExceptionHandler {
         return campo.isBindingFailure() || campo.getDefaultMessage() == null
                 ? "el valor no tiene el tipo esperado"
                 : campo.getDefaultMessage();
+    }
+
+    /**
+     * 400: el filtro de disponibilidad no se entiende (#16).
+     *
+     * <p>Separado del {@code VALIDATION_ERROR} de arriba porque llega por otro
+     * camino: no es un fallo de binding sino una invariante de dominio, y el
+     * cliente tiene que poder distinguir los dos casos. El {@code detail} sale
+     * del mensaje de la excepcion, que esta escrito para quien integra y dice
+     * cual de los cuatro problemas posibles fue.
+     */
+    @ExceptionHandler(InvalidAvailabilityFilterException.class)
+    ResponseEntity<Map<String, Object>> disponibilidadInvalida(
+            InvalidAvailabilityFilterException error, HttpServletRequest request) {
+
+        return problema(
+                HttpStatus.BAD_REQUEST,
+                ApiErrorCode.INVALID_AVAILABILITY_FILTER,
+                error,
+                request);
     }
 
     /** 404: no esta en la copia local. */

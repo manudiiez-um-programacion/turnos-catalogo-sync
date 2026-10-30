@@ -173,8 +173,43 @@ catálogo completo paginado.
 | `categoryId` | categoría exacta |
 | `name` | coincidencia **parcial** sobre nombre y apellido juntos, insensible a mayúsculas y acentos: `gomez` encuentra a `Gómez`. En blanco equivale a no filtrar |
 | `enabled` | estado exacto. `false` trae solo los deshabilitados, que la copia conserva como baja lógica (§14.4) |
+| `availableOn` | día de la semana en el que tiene que tener agenda: `MONDAY`…`SUNDAY` |
+| `availableFrom` / `availableTo` | franja horaria, `HH:mm` o `HH:mm:ss`. Van siempre las dos |
 | `page` | página, base cero. Por defecto `0` |
 | `size` | elementos por página. Por defecto `20`, máximo `100` |
+
+#### La disponibilidad responde "tiene agenda", no "tiene cupo libre"
+
+Es la parte del filtro que hay que leer con cuidado, porque la palabra promete
+más de lo que este servicio puede saber. El criterio implementado es:
+
+> Un profesional está disponible cuando **está habilitado** y tiene **al menos
+> un horario habilitado** que cae dentro del día o del rango pedido.
+
+Nada más. Un profesional que atiende los lunes de 09:00 a 13:00 y tiene toda esa
+mañana reservada **sigue cumpliendo el filtro**. Decir lo contrario exigiría
+conocer las ocupaciones, y acá no hay ocupaciones, bloqueos ni reservas: eso vive
+en el servicio de turnos (§4.2 y §7 del enunciado). Es un prefiltro sobre reglas
+de agenda, útil para no ofrecerle al usuario profesionales que no atienden nunca
+ese día; el cupo concreto lo resuelve turnos cruzando esta agenda con sus
+reservas.
+
+Tres detalles del comportamiento:
+
+- **El rango se cruza por solapamiento, no por contención.** Un horario de 09:00
+  a 13:00 cumple un pedido de 10:00 a 11:00. Exigir contención preguntaría
+  "¿atiende exclusivamente dentro de esta franja?", que no es lo que nadie
+  quiere saber.
+- **El borde exacto no cuenta.** Un horario que termina a las 13:00 no cumple un
+  pedido que empieza a las 13:00: la intersección duraría cero.
+- **El día y el rango son independientes.** Se puede pedir solo el día
+  (`?availableOn=MONDAY`), solo la franja
+  (`?availableFrom=09:00&availableTo=13:00`) o las dos. Lo que no se acepta es
+  media franja.
+
+Combinarlo con `enabled=false` devuelve una página vacía, y es correcto: estar
+disponible incluye estar habilitado, así que pedir "deshabilitados y
+disponibles" es pedir algo que por definición no existe.
 
 **El orden es fijo: apellido, nombre, id, ascendente.** No se recibe del
 cliente, y eso es deliberado. Un `?sort=` convertiría el nombre de una columna
@@ -191,7 +226,12 @@ búsqueda.
 | --- | --- | --- |
 | 200 | — | la página; `content` vacío es una respuesta válida, no un error |
 | 400 | `VALIDATION_ERROR` | página negativa, `size` fuera de rango o un tipo que no corresponde |
+| 400 | `INVALID_AVAILABILITY_FILTER` | día inexistente, hora mal formada, media franja o rango invertido |
 | 503 | `CATALOG_NOT_SYNCHRONIZED` | todavía no hay versión aplicada: reintentar |
+
+Los dos 400 están separados a propósito: el segundo no lo detecta el binding de
+Spring —son cadenas bien formadas que solo el dominio sabe rechazar— y en la app
+se corrigen en controles distintos de la misma pantalla.
 
 El 503 no contradice que una página vacía sea válida: son dos cosas distintas.
 `content: []` significa "no hay profesionales que cumplan los filtros" y no se

@@ -9,6 +9,7 @@ import com.um.catalogsync.professional.infrastructure.persistence.entity.Profess
 import com.um.catalogsync.professional.infrastructure.persistence.mapper.ProfessionalMapper;
 import com.um.catalogsync.professional.infrastructure.persistence.repository.JpaProfessionalRepository;
 import com.um.catalogsync.professional.infrastructure.persistence.specification.ProfessionalSpecifications;
+import com.um.catalogsync.schedule.domain.ports.out.WeeklyScheduleRepository;
 import java.sql.SQLException;
 import java.util.Collection;
 import java.util.List;
@@ -38,10 +39,18 @@ import org.springframework.transaction.annotation.Transactional;
  * quien sincroniza recibiria un error de integridad generico y tendria que
  * interpretar un mensaje de PostgreSQL para entender que falto.
  *
- * <p><b>Y resuelve la busqueda enteramente en PostgreSQL</b> (#15): filtros,
- * orden, paginado y total los decide la base. Es la regla de §6.2 vista desde
- * el unico lugar donde podria romperse: este adaptador es el que toca los
- * datos, y lo unico que toca es la copia local.
+ * <p><b>Y resuelve la busqueda enteramente en PostgreSQL</b> (#15, #16):
+ * filtros, orden, paginado y total los decide la base. Es la regla de §6.2
+ * vista desde el unico lugar donde podria romperse: este adaptador es el que
+ * toca los datos, y lo unico que toca es la copia local.
+ *
+ * <p>Con el filtro de disponibilidad son <b>dos consultas</b> en la misma
+ * transaccion de solo lectura: primero los ids con agenda, por el puerto del
+ * slice de horarios, y despues la pagina. El por que esta en
+ * {@code ProfessionalSpecifications}. Que compartan transaccion no es
+ * decorativo: el caso de uso la abre en REPEATABLE READ, asi que las dos ven
+ * la misma instantanea y una sincronizacion que commitee en medio no puede
+ * producir una pagina que mezcle dos versiones del catalogo.
  */
 @Component
 @RequiredArgsConstructor
@@ -83,6 +92,18 @@ public class JpaProfessionalRepositoryAdapter implements ProfessionalRepository 
     private final JpaProfessionalRepository jpaRepository;
     private final ProfessionalMapper mapper;
 
+    /**
+     * El puerto de horarios, solo para el filtro de disponibilidad (#16).
+     *
+     * <p>Es una dependencia cruzada entre slices y esta permitida porque es
+     * el <b>puerto de dominio</b> del otro slice y no su
+     * {@code infrastructure}: es el mismo camino que ya usa
+     * {@code GetCurrentAgendaUseCaseImpl} con tres puertos de tres slices. Lo
+     * que no se podria es importar su {@code @Entity} para armar un
+     * {@code JOIN}, que es justamente lo que esta dependencia evita.
+     */
+    private final WeeklyScheduleRepository horarios;
+
     @Override
     @Transactional
     public Professional upsert(Professional professional) {
@@ -110,9 +131,23 @@ public class JpaProfessionalRepositoryAdapter implements ProfessionalRepository 
     @Override
     @Transactional(readOnly = true)
     public ProfessionalPage search(ProfessionalSearchCriteria criteria) {
+        List<Long> conAgenda = List.of();
+        if (criteria.filtraPorDisponibilidad()) {
+            conAgenda = horarios.findProfessionalIdsWithAgendaIn(criteria.availability());
+            if (conAgenda.isEmpty()) {
+                // Corta aca por dos razones. La util: nadie tiene agenda en
+                // ese dia o rango, asi que el resultado ya se conoce y la
+                // segunda consulta no aportaria nada. La necesaria: un
+                // IN () no es SQL valido, y Hibernate lo traduce a una
+                // condicion siempre falsa dejando igual una consulta que no
+                // hacia falta.
+                return ProfessionalPage.vacia(criteria);
+            }
+        }
+
         Page<ProfessionalEntity> pagina =
                 jpaRepository.findAll(
-                        ProfessionalSpecifications.de(criteria),
+                        ProfessionalSpecifications.de(criteria, conAgenda),
                         PageRequest.of(criteria.page(), criteria.size(), ORDEN_ESTABLE));
 
         return new ProfessionalPage(

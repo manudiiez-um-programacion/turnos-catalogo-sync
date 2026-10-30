@@ -81,6 +81,21 @@ catedra:
     # lado seguro de olvidarse de configurarlo es que la verificacion corra.
     verify-on-startup: true
 
+# Sincronizacion al arrancar (issue #14).
+#
+# Con la base recien inicializada —sin version de catalogo aplicada— el
+# arranque pide el snapshot completo (§6.1). El trabajo corre en un hilo
+# aparte, asi que no atrasa el arranque, y una catedra que no responde deja
+# el servicio arriba sin catalogo en lugar de reiniciandose en ciclo: el
+# estado se ve en /actuator/health y el motivo queda en sync_run.
+#
+# Se apaga solo en pruebas, donde cada @SpringBootTest levanta el contexto
+# completo y es la prueba la que tiene que decidir cuando se sincroniza.
+# El default es true: el lado seguro de olvidarse de configurarlo.
+sync:
+  startup:
+    enabled: ${SYNC_STARTUP_ENABLED:true}
+
 # Seguridad de la API propia (ADR 0002, issue #17).
 #
 # Dos identidades con dos secretos distintos: el JWT del usuario final que

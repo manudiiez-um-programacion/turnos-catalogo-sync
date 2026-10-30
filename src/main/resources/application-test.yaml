@@ -37,6 +37,18 @@ catedra:
     read-timeout: 2s
     verify-on-startup: false
 
+# Sincronizacion al arrancar: apagada.
+#
+# Cada prueba de integracion levanta el contexto completo, y con esto
+# encendido todas intentarian traer el snapshot de un servidor que no
+# existe. Ademas le sacaria a la prueba el control de cuando se sincroniza,
+# que es justamente lo que las pruebas de punta a punta (#21) necesitan
+# decidir. Las que prueban el runner lo construyen a mano o encienden la
+# propiedad para su propio contexto.
+sync:
+  startup:
+    enabled: false
+
 # Seguridad: secretos fijos de prueba, no son credenciales de nada.
 #
 # Tienen que estar porque sin ellos el contexto no arranca, que es

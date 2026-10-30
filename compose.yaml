@@ -96,6 +96,14 @@ services:
       # llegaria a UP. Ponerla en true en .env cuando el enrutamiento este
       # resuelto. Ver el README.
       CATEDRA_API_VERIFY_ON_STARTUP: ${CATEDRA_API_VERIFY_ON_STARTUP:-false}
+
+      # La sincronizacion inicial, en cambio, SI queda encendida dentro del
+      # contenedor, aunque por el mismo conflicto de subred vaya a fallar
+      # mientras el enrutamiento no este resuelto. La diferencia con la
+      # linea de arriba es que esta falla sin tumbar nada: deja un WARN que
+      # nombra el problema, una fila en sync_run y el servicio en UP con
+      # estado SIN_CATALOGO. Apagarla solo esconderia que falta el catalogo.
+      SYNC_STARTUP_ENABLED: ${SYNC_STARTUP_ENABLED:-true}
       REDIS_HOST: ${REDIS_HOST:-}
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_USERNAME: ${REDIS_USERNAME:-}

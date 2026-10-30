@@ -1,13 +1,16 @@
 package com.um.catalogsync.shared.infrastructure.web;
 
 import com.um.catalogsync.professional.application.exception.ProfessionalNotFoundException;
-import com.um.catalogsync.schedule.application.exception.CatalogNotSynchronizedException;
+import com.um.catalogsync.sync.application.exception.CatalogNotSynchronizedException;
 import com.um.catalogsync.schedule.application.exception.ProfessionalDisabledException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindException;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -34,6 +37,53 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  */
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
+    /**
+     * 400: los parametros de la busqueda no son aceptables (#15).
+     *
+     * <p>Atrapa {@link BindException} y no cada anotacion por separado porque
+     * es el tipo del que Spring hace derivar los dos fallos de binding de una
+     * query string: la violacion de una restriccion de validacion y el tipo
+     * que no convierte —{@code ?page=abc}—. Los dos significan lo mismo para
+     * el cliente y se arreglan igual, asi que comparten {@code code}.
+     *
+     * <p><b>El detalle nombra los campos, no los valores.</b> Decir "size: el
+     * tamaño de pagina maximo es 100" le dice al que integra exactamente que
+     * corregir; devolverle el valor rechazado seria reflejar entrada del
+     * usuario en la respuesta sin ninguna necesidad.
+     */
+    @ExceptionHandler(BindException.class)
+    ResponseEntity<Map<String, Object>> parametrosInvalidos(
+            BindException error, HttpServletRequest request) {
+
+        String detalle =
+                error.getFieldErrors().stream()
+                        .map(campo -> campo.getField() + ": " + mensajeDe(campo))
+                        .sorted()
+                        .collect(Collectors.joining("; "));
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                .body(
+                        ProblemJsonWriter.cuerpo(
+                                HttpStatus.BAD_REQUEST,
+                                ApiErrorCode.VALIDATION_ERROR,
+                                detalle.isEmpty() ? "parametros invalidos" : detalle,
+                                request.getRequestURI()));
+    }
+
+    /**
+     * El mensaje de la restriccion, o uno propio si no hay.
+     *
+     * <p>Un fallo de conversion de tipo no trae mensaje de validacion: el que
+     * Spring arma menciona la clase Java esperada y el valor recibido, que es
+     * detalle interno. Se reemplaza por algo que el cliente pueda accionar.
+     */
+    private static String mensajeDe(FieldError campo) {
+        return campo.isBindingFailure() || campo.getDefaultMessage() == null
+                ? "el valor no tiene el tipo esperado"
+                : campo.getDefaultMessage();
+    }
 
     /** 404: no esta en la copia local. */
     @ExceptionHandler(ProfessionalNotFoundException.class)

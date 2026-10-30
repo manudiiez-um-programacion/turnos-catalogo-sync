@@ -158,6 +158,53 @@ réplica del catálogo para búsquedas o reservas nuevas. El rol de base
 la prohibición no depende solo de la disciplina: no hay credencial con la que
 turnos pueda leer estas tablas.
 
+### La búsqueda de profesionales: lo que consume la app KMP
+
+```
+GET /api/professionals?categoryId=7&name=gomez&enabled=true&page=0&size=20
+Authorization: Bearer <jwt-usuario-final>
+```
+
+Los tres filtros son **opcionales y combinables**; sin ninguno devuelve el
+catálogo completo paginado.
+
+| Parámetro | Qué hace |
+| --- | --- |
+| `categoryId` | categoría exacta |
+| `name` | coincidencia **parcial** sobre nombre y apellido juntos, insensible a mayúsculas y acentos: `gomez` encuentra a `Gómez`. En blanco equivale a no filtrar |
+| `enabled` | estado exacto. `false` trae solo los deshabilitados, que la copia conserva como baja lógica (§14.4) |
+| `page` | página, base cero. Por defecto `0` |
+| `size` | elementos por página. Por defecto `20`, máximo `100` |
+
+**El orden es fijo: apellido, nombre, id, ascendente.** No se recibe del
+cliente, y eso es deliberado. Un `?sort=` convertiría el nombre de una columna
+en entrada del usuario, y el orden es algo que la app puede dar por sentado
+justamente porque no se negocia en cada llamada. El `id` desempata a los
+homónimos: sin ese tercer criterio el orden no es total, y un profesional en el
+borde de una página puede repetirse en la siguiente o perderse.
+
+La respuesta trae `content`, `page` —`number`, `size`, `totalElements`,
+`totalPages`— y `catalogVersion`, la versión local con la que se resolvió la
+búsqueda.
+
+| HTTP | `code` | Cuándo |
+| --- | --- | --- |
+| 200 | — | la página; `content` vacío es una respuesta válida, no un error |
+| 400 | `VALIDATION_ERROR` | página negativa, `size` fuera de rango o un tipo que no corresponde |
+| 503 | `CATALOG_NOT_SYNCHRONIZED` | todavía no hay versión aplicada: reintentar |
+
+El 503 no contradice que una página vacía sea válida: son dos cosas distintas.
+`content: []` significa "no hay profesionales que cumplan los filtros" y no se
+arregla reintentando; el 503 significa "todavía no hay catálogo" y sí.
+
+**Las búsquedas nunca consultan al servicio central.** §6.2 lo prohíbe y es la
+razón por la que este servicio mantiene una copia local: una búsqueda que
+saliera a la red por cada tecleo del usuario convertiría al servicio de la
+cátedra en el cuello de botella de la app. Se resuelve entero en PostgreSQL, con
+el índice de trigramas que la migración `V1` creó para el filtro de nombre. Lo
+verifica una prueba que reemplaza el puerto del snapshot por un doble y falla si
+una búsqueda lo llega a invocar.
+
 **Toda la API es de solo lectura.** La copia local se escribe desde la
 sincronización con la cátedra, que es la fuente autoritativa, y nunca por HTTP.
 Lo fija una prueba que le pregunta a Spring qué rutas quedaron registradas y

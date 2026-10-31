@@ -34,6 +34,21 @@ public enum ApiErrorCode {
      */
     VALIDATION_ERROR,
 
+    /**
+     * 400: el filtro de disponibilidad de la busqueda no se puede interpretar.
+     *
+     * <p>Un dia que no es uno de los siete del contrato, una hora que no
+     * respeta {@code HH:mm} ni {@code HH:mm:ss}, un rango con una sola de las
+     * dos horas, o un rango invertido o de duracion cero.
+     *
+     * <p><b>Codigo propio y no {@link #VALIDATION_ERROR}</b> porque esto no lo
+     * detecta el binding de Spring: son cadenas bien formadas que solo el
+     * dominio sabe rechazar. Separarlo le permite al cliente distinguir "mande
+     * mal el filtro de disponibilidad" de "mande mal el paginado", que en la
+     * app son dos controles distintos de la misma pantalla.
+     */
+    INVALID_AVAILABILITY_FILTER,
+
     /** 401: no vino cabecera {@code Authorization} con un Bearer. */
     AUTH_TOKEN_MISSING,
 

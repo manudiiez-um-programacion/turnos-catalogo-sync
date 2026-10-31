@@ -26,12 +26,12 @@ paths:
       tags:
       - Profesionales
       summary: Buscar profesionales en la copia local
-      description: "Filtros opcionales y combinables: categoria exacta, coincidencia\
-        \ parcial de nombre insensible a mayusculas y acentos sobre nombre y apellido,\
-        \ y estado habilitado. Se resuelve solo con datos locales, nunca consultando\
-        \ a la catedra (§6.2). El orden es fijo —apellido, nombre, id ascendente—\
-        \ para que el paginado sea estable. Una pagina vacia es una respuesta valida.\
-        \ La respuesta trae la version local de catalogo con la que se resolvio."
+      description: |-
+        Filtros opcionales y combinables: categoria exacta, coincidencia parcial de nombre insensible a mayusculas y acentos sobre nombre y apellido, estado habilitado y disponibilidad por dia o franja horaria. Se resuelve solo con datos locales, nunca consultando a la catedra (§6.2).
+
+        La disponibilidad responde 'tiene agenda', NO 'tiene cupo libre': un profesional cumple el filtro si esta habilitado y tiene al menos un horario habilitado en el dia o la franja pedidos. No considera ocupaciones, bloqueos ni reservas, que son del servicio de turnos (§4.2). El rango se cruza por solapamiento.
+
+        El orden es fijo —apellido, nombre, id ascendente— para que el paginado sea estable. Una pagina vacia es una respuesta valida. La respuesta trae la version local de catalogo con la que se resolvio.
       operationId: buscar
       parameters:
       - name: categoryId
@@ -66,6 +66,49 @@ paths:
           description: "true solo habilitados, false solo deshabilitados"
           example: true
         example: true
+      - name: availableOn
+        in: query
+        description: "Dia de la semana en el que el profesional tiene que tener agenda.\
+          \ Responde 'tiene agenda', no 'tiene cupo libre': no considera ocupaciones\
+          \ ni reservas, que son del servicio de turnos."
+        required: false
+        schema:
+          type: string
+          description: "Dia de la semana en el que el profesional tiene que tener\
+            \ agenda. Responde 'tiene agenda', no 'tiene cupo libre': no considera\
+            \ ocupaciones ni reservas, que son del servicio de turnos."
+          enum:
+          - MONDAY
+          - TUESDAY
+          - WEDNESDAY
+          - THURSDAY
+          - FRIDAY
+          - SATURDAY
+          - SUNDAY
+          example: MONDAY
+        example: MONDAY
+      - name: availableFrom
+        in: query
+        description: "Inicio de la franja pedida, HH:mm o HH:mm:ss. Se cruza por solapamiento:\
+          \ un horario de 09:00 a 13:00 cumple un pedido de 10:00 a 11:00. Va siempre\
+          \ junto con availableTo."
+        required: false
+        schema:
+          type: string
+          description: "Inicio de la franja pedida, HH:mm o HH:mm:ss. Se cruza por\
+            \ solapamiento: un horario de 09:00 a 13:00 cumple un pedido de 10:00\
+            \ a 11:00. Va siempre junto con availableTo."
+          example: 09:00
+        example: 09:00
+      - name: availableTo
+        in: query
+        description: "Fin de la franja pedida, posterior a availableFrom"
+        required: false
+        schema:
+          type: string
+          description: "Fin de la franja pedida, posterior a availableFrom"
+          example: 13:00
+        example: 13:00
       - name: page
         in: query
         description: "Pagina, base cero"
@@ -99,8 +142,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProfessionalSearchResult"
         "400":
-          description: "Parametros invalidos (VALIDATION_ERROR): pagina negativa,\
-            \ tamaño fuera de rango o un tipo que no corresponde"
+          description: "Parametros invalidos. VALIDATION_ERROR: pagina negativa, tamañ\
+            o fuera de rango o un tipo que no corresponde. INVALID_AVAILABILITY_FILTER:\
+            \ dia inexistente, hora mal formada, media franja o rango invertido"
           content:
             application/problem+json: {}
         "401":

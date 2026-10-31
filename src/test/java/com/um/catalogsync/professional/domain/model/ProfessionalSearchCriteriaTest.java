@@ -3,6 +3,8 @@ package com.um.catalogsync.professional.domain.model;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.um.catalogsync.schedule.domain.model.AvailabilityCriteria;
+import com.um.catalogsync.schedule.domain.model.DayOfWeek;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -20,8 +22,11 @@ import org.junit.jupiter.params.provider.ValueSource;
  */
 class ProfessionalSearchCriteriaTest {
 
+    private static final AvailabilityCriteria LOS_LUNES =
+            new AvailabilityCriteria(DayOfWeek.MONDAY, null, null);
+
     private static ProfessionalSearchCriteria conNombre(String name) {
-        return new ProfessionalSearchCriteria(null, name, null, 0, 20);
+        return new ProfessionalSearchCriteria(null, name, null, null, 0, 20);
     }
 
     @Test
@@ -52,20 +57,22 @@ class ProfessionalSearchCriteriaTest {
     }
 
     @Test
-    @DisplayName("los tres filtros son independientes y se pueden combinar")
-    void losTresFiltrosSonIndependientes() {
-        ProfessionalSearchCriteria todos =
-                new ProfessionalSearchCriteria(7L, "gomez", true, 0, 20);
+    @DisplayName("los cuatro filtros son independientes y se pueden combinar")
+    void losCuatroFiltrosSonIndependientes() {
+        ProfessionalSearchCriteria todos = new ProfessionalSearchCriteria(
+                7L, "gomez", true, LOS_LUNES, 0, 20);
 
         assertThat(todos.filtraPorCategoria()).isTrue();
         assertThat(todos.filtraPorNombre()).isTrue();
         assertThat(todos.filtraPorEstado()).isTrue();
+        assertThat(todos.filtraPorDisponibilidad()).isTrue();
 
         ProfessionalSearchCriteria ninguno = ProfessionalSearchCriteria.primeraPagina();
 
         assertThat(ninguno.filtraPorCategoria()).isFalse();
         assertThat(ninguno.filtraPorNombre()).isFalse();
         assertThat(ninguno.filtraPorEstado()).isFalse();
+        assertThat(ninguno.filtraPorDisponibilidad()).isFalse();
     }
 
     @Test
@@ -74,7 +81,7 @@ class ProfessionalSearchCriteriaTest {
         // Es la razon de que el campo sea Boolean y no boolean: "quiero los
         // deshabilitados" y "no me importa el estado" son pedidos distintos.
         ProfessionalSearchCriteria soloDeshabilitados =
-                new ProfessionalSearchCriteria(null, null, false, 0, 20);
+                new ProfessionalSearchCriteria(null, null, false, null, 0, 20);
 
         assertThat(soloDeshabilitados.filtraPorEstado()).isTrue();
         assertThat(soloDeshabilitados.enabled()).isFalse();
@@ -83,7 +90,7 @@ class ProfessionalSearchCriteriaTest {
     @Test
     @DisplayName("una pagina negativa no se puede expresar")
     void rechazaLaPaginaNegativa() {
-        assertThatThrownBy(() -> new ProfessionalSearchCriteria(null, null, null, -1, 20))
+        assertThatThrownBy(() -> new ProfessionalSearchCriteria(null, null, null, null, -1, 20))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("-1");
     }
@@ -96,7 +103,7 @@ class ProfessionalSearchCriteriaTest {
         // busqueda paginada en un volcado de la tabla y el costo lo paga el
         // servicio. La invariante vive en el dominio para que no dependa de
         // que el borde web la valide.
-        assertThatThrownBy(() -> new ProfessionalSearchCriteria(null, null, null, 0, size))
+        assertThatThrownBy(() -> new ProfessionalSearchCriteria(null, null, null, null, 0, size))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -105,7 +112,7 @@ class ProfessionalSearchCriteriaTest {
     void aceptaElTamanioMaximo() {
         ProfessionalSearchCriteria borde =
                 new ProfessionalSearchCriteria(
-                        null, null, null, 0, ProfessionalSearchCriteria.TAMANIO_MAXIMO);
+                        null, null, null, null, 0, ProfessionalSearchCriteria.TAMANIO_MAXIMO);
 
         assertThat(borde.size()).isEqualTo(ProfessionalSearchCriteria.TAMANIO_MAXIMO);
     }

@@ -387,6 +387,14 @@ que coincidir exactamente con los que muestra SonarCloud.
 Camino recomendado y el único que no necesita tener JDK 25 ni PostgreSQL
 instalados en la máquina: solo Docker.
 
+Este `compose.yaml` es para **desarrollar el catálogo de forma aislada**:
+levanta solo este servicio y su propio PostgreSQL de un solo uso. En la
+solución completa, ese mismo rol y esa misma base conviven en una
+**instancia física de PostgreSQL compartida** con el servicio de turnos
+(dos bases lógicas, sin permisos cruzados), orquestada por un compose de
+nivel superior que no vive en este repo. Ver
+[`docs/adr/0003-instancia-postgres-compartida.md`](docs/adr/0003-instancia-postgres-compartida.md).
+
 ```bash
 cp .env.example .env            # una vez; completar las dos contraseñas
 docker compose up --build       # compila la imagen y levanta todo
@@ -470,14 +478,22 @@ permisos cruzados** y migraciones independientes. Por eso hay dos cuentas:
 | `catalogo` (`DB_USERNAME`) | La cuenta con la que se conecta el servicio. | Rol común: `LOGIN`, dueño de su base. Sin `SUPERUSER`, `CREATEDB` ni `CREATEROLE` |
 
 El script de inicialización, además de crear el rol y la base, le quita a
-`PUBLIC` el permiso de conexión y lo devuelve solo al dueño. Resultado: un
-usuario de otro servicio —el de turnos, por ejemplo— no puede conectarse a
-esta base ni siquiera si en el futuro comparten la instancia:
+`PUBLIC` el permiso de conexión y lo devuelve solo al dueño. Resultado: el
+usuario del servicio de turnos no puede conectarse a esta base:
 
 ```bash
 # FATAL: permission denied for database "catalogo"
 #        User does not have CONNECT privilege.
 ```
+
+Esto ya no es un escenario hipotético: la solución completa comparte una
+sola instancia física de PostgreSQL entre los dos servicios (D9 en
+`CLAUDE.md`, detalle en
+[`docs/adr/0003-instancia-postgres-compartida.md`](docs/adr/0003-instancia-postgres-compartida.md)).
+El script de este repo (prefijo `01-`, variables `CATALOG_DB_*`, puerto
+`5432`) ya cumplía el contrato que hace posible esa convivencia sin tocar
+nada; el lado de turnos usa prefijo `02-`, variables `TURNOS_DB_*` y puerto
+`5433`.
 
 ### Las migraciones
 

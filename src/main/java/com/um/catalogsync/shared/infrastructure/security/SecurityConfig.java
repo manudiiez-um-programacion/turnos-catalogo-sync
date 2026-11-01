@@ -208,7 +208,22 @@ public class SecurityConfig {
      * cabecera {@code Authorization} —el navegador no la manda nunca en el
      * preflight—, asi que si no se le permite pasar, la app KMP en navegador
      * recibe un 401 en una peticion que ni siquiera hizo.
+     *
+     * <p><b>Por que la supresion de {@code java:S4502}.</b> Esa regla de Sonar
+     * marca cualquier {@code csrf().disable()} y no afirma un defecto: pide
+     * confirmar que apagarlo es seguro <i>aca</i>. Lo es, por las tres
+     * condiciones que se ven en este mismo metodo —sin sesion, sin cookies de
+     * autenticacion, la credencial en una cabecera que el cliente pone a
+     * mano— y por una cuarta que fija otra prueba: la API es de solo lectura,
+     * asi que no hay ninguna operacion que un sitio de terceros pudiera
+     * disparar. La supresion va escrita aca y no marcada en la web de
+     * SonarCloud a proposito: asi la justificacion queda versionada, se revisa
+     * en el diff y no depende de que alguien recuerde clickear en una UI. Si
+     * alguna de esas cuatro condiciones cambia —aparece una sesion, una cookie
+     * de autenticacion o un endpoint que escriba— hay que volver a mirar esto
+     * y no simplemente mantener la anotacion.
      */
+    @SuppressWarnings("java:S4502")
     private void aplicarBase(HttpSecurity http) throws Exception {
         http.cors(cors -> cors.configurationSource(origenesPermitidos()))
                 .csrf(csrf -> csrf.disable())

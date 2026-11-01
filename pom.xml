@@ -141,6 +141,23 @@
             <artifactId>flyway-database-postgresql</artifactId>
         </dependency>
 
+        <!-- Cliente de Redis para leer el catalogo publicado por la catedra
+             (§14). Va `lettuce-core` suelto y NO `spring-boot-starter-data-redis`
+             a proposito: el starter autoconfigura una conexion a partir de
+             `spring.data.redis.*`, y los datos de conexion de este proyecto no
+             estan en la configuracion —llegan en tiempo de ejecucion en el
+             objeto `integration` de la catedra (§14.1)—. Con el starter
+             habria un connection factory apuntando a localhost que nadie usa
+             y un health indicator que lo reportaria caido. Tampoco hace falta
+             `RedisTemplate`: lo que se lee son strings y hashes de strings,
+             que es exactamente la API sincronica de Lettuce.
+
+             La version la administra el parent de Spring Boot. -->
+        <dependency>
+            <groupId>io.lettuce</groupId>
+            <artifactId>lettuce-core</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>

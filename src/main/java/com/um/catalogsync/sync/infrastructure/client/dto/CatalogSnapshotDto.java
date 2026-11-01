@@ -1,6 +1,9 @@
 package com.um.catalogsync.sync.infrastructure.client.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.um.catalogsync.sync.infrastructure.dto.ProfessionalCategoryDto;
+import com.um.catalogsync.sync.infrastructure.dto.ProfessionalDto;
+import com.um.catalogsync.sync.infrastructure.dto.WeeklyScheduleDto;
 import java.time.Instant;
 import java.util.List;
 

@@ -40,6 +40,17 @@ catedra:
     read-timeout: 2s
     verify-on-startup: false
 
+  # Redis de la catedra: timeouts cortos.
+  #
+  # En una prueba no hay un enlace ZeroTier que justifique esperar diez
+  # segundos, y una prueba que verifica un timeout tiene que terminar
+  # rapido. Los datos de conexion no estan aca ni en ningun yaml: llegan de
+  # integration (§14.1), y las pruebas del adaptador le pasan los del
+  # contenedor de Redis que levantan.
+  redis:
+    connect-timeout: 1s
+    command-timeout: 2s
+
 # Sincronizacion al arrancar: apagada.
 #
 # Cada prueba de integracion levanta el contexto completo, y con esto

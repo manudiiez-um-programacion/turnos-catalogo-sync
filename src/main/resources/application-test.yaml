@@ -26,8 +26,11 @@ springdoc:
 # fallaria por el entorno y no por el codigo.
 #
 # Los valores igual tienen que estar: las propiedades son obligatorias y
-# sin ellas el contexto no arranca. Son marcadores y no apuntan a nada —las
-# pruebas de los adaptadores levantan WireMock y le pasan su propia URL.
+# sin ellas el contexto no arranca. Son marcadores y no apuntan a nada: las
+# pruebas de los adaptadores levantan WireMock y le pasan su propia URL, y
+# la prueba de punta a punta (#21) reemplaza esta base-url por la del doble
+# con @DynamicPropertySource, asi que ahi el contexto entero habla con
+# WireMock por el mismo adaptador y los mismos timeouts.
 catedra:
   api:
     base-url: http://localhost:1

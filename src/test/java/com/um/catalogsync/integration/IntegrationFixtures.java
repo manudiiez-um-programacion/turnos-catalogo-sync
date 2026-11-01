@@ -49,6 +49,28 @@ public final class IntegrationFixtures {
      * solo se entrega cuando la cuenta esta habilitada.
      */
     public static IntegrationConfig conEstado(ProvisioningStatus estado) {
+        return base(estado).build();
+    }
+
+    /**
+     * La misma configuracion habilitada, pero apuntando a un Redis concreto.
+     *
+     * <p>La usan las pruebas del adaptador de Redis: el host, el puerto, el
+     * usuario y la clave son los del contenedor que levanta la prueba, que es
+     * exactamente de donde los toma el servicio en produccion —del objeto
+     * {@code integration}, no de la configuracion (§14.1)—.
+     */
+    public static IntegrationConfig conRedisEn(
+            String host, int puerto, String usuario, Secret clave) {
+        return base(ProvisioningStatus.PROVISIONED)
+                .redisHost(host)
+                .redisPort(puerto)
+                .redisUsername(usuario)
+                .redisPassword(clave)
+                .build();
+    }
+
+    private static IntegrationConfig.IntegrationConfigBuilder base(ProvisioningStatus estado) {
         return IntegrationConfig.builder()
                 .groupId(GROUP_ID)
                 .redisHost("redis.catedra.internal")
@@ -64,8 +86,7 @@ public final class IntegrationFixtures {
                 .kafkaCatalogTopic("catedra.catalog." + GROUP_ID)
                 .kafkaAppointmentActionsTopic("alumnos.turnos.acciones." + GROUP_ID)
                 .kafkaAppointmentPhoneTopic("catedra.turnos.telefono." + GROUP_ID)
-                .provisioningStatus(estado)
-                .build();
+                .provisioningStatus(estado);
     }
 
     public static TechnicalSession sesion() {

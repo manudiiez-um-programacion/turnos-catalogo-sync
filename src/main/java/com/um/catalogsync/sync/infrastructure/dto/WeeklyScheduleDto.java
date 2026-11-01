@@ -1,4 +1,4 @@
-package com.um.catalogsync.sync.infrastructure.client.dto;
+package com.um.catalogsync.sync.infrastructure.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.time.Instant;

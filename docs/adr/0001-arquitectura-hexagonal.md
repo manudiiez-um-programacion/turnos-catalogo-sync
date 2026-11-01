@@ -200,8 +200,8 @@ Lo que el enunciado sí exige se cumple igual, sin el generador:
   internos, estado de activación, autoridades y auditoría administrados por el
   backend. El propio enunciado prevé este caso: "quien no lo utilice implemente
   los mismos datos y comportamientos observables". Esto se implementa en el
-  **servicio de turnos**, dueño de la identidad del usuario final (decisión
-  abierta D1); este servicio solo valida el JWT emitido allá.
+  **servicio de turnos**, dueño de la identidad del usuario final; este servicio
+  solo valida el JWT emitido allá (ADR 0002).
 - **Errores en `application/problem+json` (§13 de la referencia de
   integración):** `type`, `title`, `status`, `detail`, `message`, `path` y un
   `code` estable, más `fieldErrors` en errores de validación. Se produce con un

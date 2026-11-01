@@ -32,10 +32,21 @@ spring:
       # Las tablas las crean las migraciones de db/migration, nunca
       # Hibernate. validate solo verifica que el mapeo coincida.
       ddl-auto: validate
-    properties:
-      hibernate:
-        jdbc:
-          time_zone: UTC
+
+    # NO poner hibernate.jdbc.time_zone. Estuvo en UTC hasta el issue #16 y
+    # corrompia los horarios: Hibernate aplica ese ajuste tambien a las
+    # columnas TIME, asi que un horario de 09:00 se guardaba como 12:00 si la
+    # app corria en -03:00. El ida y vuelta por JPA lo tapaba —se escribia y
+    # se leia con el mismo desplazamiento— pero la fila quedaba mal para
+    # cualquier consulta SQL, el valor dependia de la zona de la maquina y las
+    # comparaciones del filtro de disponibilidad (#16) daban cualquier cosa.
+    #
+    # Las horas de atencion son locales y sin zona (§4 de la referencia): una
+    # regla semanal no ocurre en un instante, asi que no hay nada que
+    # convertir. Y los instantes no necesitan el ajuste: todas las columnas de
+    # fecha son TIMESTAMPTZ y se mapean a Instant, que guarda el momento
+    # absoluto sin depender de esta propiedad. Hay una prueba que falla si los
+    # horarios se vuelven a guardar desplazados.
 
 server:
   port: ${SERVER_PORT:8080}
@@ -55,6 +66,67 @@ springdoc:
     enabled: ${SPRINGDOC_ENABLED:false}
   swagger-ui:
     enabled: ${SPRINGDOC_ENABLED:false}
+
+# Integracion con el servicio central de la catedra.
+#
+# La URL y las credenciales entran por variable de entorno y no tienen
+# valor por defecto: si falta una, la aplicacion no arranca. Los endpoints
+# de la referencia ya incluyen /api, asi que CATEDRA_API_BASE_URL es solo
+# el origen; si termina en /api, el arranque lo rechaza con un mensaje que
+# lo explica (ver CatedraApiProperties).
+catedra:
+  api:
+    base-url: ${CATEDRA_API_BASE_URL}
+    username: ${CATEDRA_TECHNICAL_USERNAME}
+    password: ${CATEDRA_TECHNICAL_PASSWORD}
+
+    # Timeouts holgados a proposito: el servidor se alcanza por ZeroTier y
+    # el enlace tiene ~228 ms de ida y vuelta medidos (decision D6). Sin
+    # timeout de lectura, una llamada que no responde cuelga el hilo para
+    # siempre. Los reintentos y el ajuste fino son del issue #31.
+    connect-timeout: 5s
+    read-timeout: 20s
+
+    # Al arrancar se resuelve la cuenta tecnica y, si provisioningStatus no
+    # es PROVISIONED, el arranque falla. Queda en true salvo en pruebas: el
+    # lado seguro de olvidarse de configurarlo es que la verificacion corra.
+    verify-on-startup: true
+
+# Sincronizacion al arrancar (issue #14).
+#
+# Con la base recien inicializada —sin version de catalogo aplicada— el
+# arranque pide el snapshot completo (§6.1). El trabajo corre en un hilo
+# aparte, asi que no atrasa el arranque, y una catedra que no responde deja
+# el servicio arriba sin catalogo en lugar de reiniciandose en ciclo: el
+# estado se ve en /actuator/health y el motivo queda en sync_run.
+#
+# Se apaga solo en pruebas, donde cada @SpringBootTest levanta el contexto
+# completo y es la prueba la que tiene que decidir cuando se sincroniza.
+# El default es true: el lado seguro de olvidarse de configurarlo.
+sync:
+  startup:
+    enabled: ${SYNC_STARTUP_ENABLED:true}
+
+# Seguridad de la API propia (ADR 0002, issue #17).
+#
+# Dos identidades con dos secretos distintos: el JWT del usuario final que
+# emite el servicio de turnos, y el JWT tecnico interno con el que ese mismo
+# servicio llama a la agenda vigente. Ninguno es el JWT tecnico de catedra.
+#
+# Los secretos no tienen valor por defecto: si falta uno, el arranque falla
+# con un mensaje que nombra la variable. Un servicio arriba que no sabe
+# validar tokens es peor que un servicio que no arranca.
+api:
+  security:
+    user-jwt:
+      secret: ${JWT_USER_SECRET}
+      issuer: ${JWT_USER_ISSUER:turnos-reservas-service}
+    internal-jwt:
+      secret: ${JWT_INTERNAL_SECRET}
+      issuer: ${JWT_INTERNAL_ISSUER:turnos-reservas-service}
+
+    # Origenes exactos, separados por coma. Nunca "*": lo rechaza el arranque.
+    cors-allowed-origins: ${CORS_ALLOWED_ORIGINS:}
 
 logging:
   level:

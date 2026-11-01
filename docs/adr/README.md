@@ -13,6 +13,7 @@ reemplace y se marca el anterior como `superseded por NNNN`.
 | # | Título | Estado | Fecha | Issue |
 | --- | --- | --- | --- | --- |
 | [0001](0001-arquitectura-hexagonal.md) | Arquitectura hexagonal con slices verticales | aceptada | 2026-10-14 | #2 |
+| [0002](0002-identidad-y-autenticacion-entre-servicios.md) | Identidad del usuario final y autenticación entre servicios | aceptada | 2026-10-26 | #59 |
 
 Estados posibles: `propuesta`, `aceptada`, `rechazada`, `superseded por NNNN`.
 
@@ -68,5 +69,3 @@ Secciones del enunciado, de la referencia de integración, issues y skills.
 ## ADRs previstos
 
 - Sincronización e idempotencia (issue #29)
-- Las decisiones abiertas D1, D4 y D5, cuando se acuerden con el repo de turnos
-  y el de KMP

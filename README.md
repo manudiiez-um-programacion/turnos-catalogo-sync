@@ -65,6 +65,204 @@ cualquiera en `DB_PASSWORD` y `POSTGRES_SUPERUSER_PASSWORD`: el resto de las
 variables son de integraciones que todavía no están implementadas y pueden
 quedar como vienen. Después, [Levantar todo con Docker Compose](#levantar-todo-con-docker-compose).
 
+Las dos variables de JWT vienen con un valor de ejemplo lo bastante largo para
+que el servicio arranque, así que no hace falta tocarlas para desarrollar. Para
+cualquier otro entorno hay que generarlas: ver
+[Seguridad de la API](#seguridad-de-la-api).
+
+## Seguridad de la API
+
+Este servicio es **resource server y nunca authorization server**: valida
+tokens y no emite ninguno. No tiene usuarios, ni registro, ni login: la
+identidad del usuario final vive en el servicio de turnos. La decisión completa,
+con sus alternativas, está en
+[`docs/adr/0002-identidad-y-autenticacion-entre-servicios.md`](docs/adr/0002-identidad-y-autenticacion-entre-servicios.md).
+
+Hay **dos identidades** y cada una tiene su propio secreto:
+
+| Quién llama | A qué | Credencial | Variable |
+| --- | --- | --- | --- |
+| app KMP | búsqueda y filtros de profesionales | JWT del usuario final, emitido por el servicio de turnos | `JWT_USER_SECRET` |
+| servicio de turnos | agenda vigente (`/api/internal/**`) | JWT técnico interno con la autoridad `SERVICE_TURNOS` | `JWT_INTERNAL_SECRET` |
+
+Los dos son HS256 con secreto compartido, y el valor tiene que ser **idéntico
+al del `.env` del servicio de turnos**. Que cada identidad se firme con un
+secreto distinto es lo que hace que un token no sirva para los endpoints de la
+otra: la separación es criptográfica, no una comprobación de claims. Generar
+cada uno con:
+
+```bash
+openssl rand -base64 48
+```
+
+Si falta uno, el arranque falla con un mensaje que nombra la variable. Es
+deliberado: un servicio arriba que no sabe validar tokens es peor que un
+servicio que no arranca.
+
+El **JWT técnico de la cátedra no participa de nada de esto**. Se usa solo como
+credencial de salida hacia el servicio central y no se acepta como credencial
+de entrada: no está firmado con ninguno de estos dos secretos, así que un
+intento de usarlo termina en 401.
+
+Público sin token queda únicamente `/actuator/health` —lo consulta el
+healthcheck de Docker Compose— y, cuando `SPRINGDOC_ENABLED=true`, la
+documentación OpenAPI. Todo lo demás exige token, incluido cualquier endpoint
+nuevo: las cadenas de filtros terminan en `authenticated()`, así que para abrir
+algo hay que nombrarlo explícitamente en `SecurityConfig`.
+
+`CORS_ALLOWED_ORIGINS` es la lista exacta de orígenes permitidos, separados por
+coma. **No acepta `"*"`**: el arranque lo rechaza.
+
+Los rechazos vienen en `application/problem+json` con un `code` estable:
+
+| HTTP | `code` | Cuándo |
+| --- | --- | --- |
+| 401 | `AUTH_TOKEN_MISSING` | no vino la cabecera `Authorization` |
+| 401 | `AUTH_TOKEN_INVALID` | token vencido, firmado con otra clave, de otro emisor o mal formado |
+| 403 | `AUTH_FORBIDDEN` | el token es válido pero no habilita esa ruta |
+
+Los clientes deciden por `status` y `code`, nunca por el texto de `detail`
+(§13 de la referencia de integración).
+
+### La agenda vigente: la única vía del servicio de turnos
+
+```
+GET /api/internal/professionals/{professionalId}/agenda
+Authorization: Bearer <jwt-tecnico-interno>
+```
+
+Devuelve los datos vigentes del profesional, sus horarios semanales
+**habilitados** y la versión local de catálogo con la que se resolvió la
+consulta. Esa versión es lo que le permite a turnos saber sobre qué copia está
+trabajando: si cambia entre dos consultas, lo sabe sin preguntar (§4.2).
+
+**No es disponibilidad.** Devuelve reglas de agenda —qué días y en qué franjas
+atiende— y nada sobre ocupaciones, bloqueos ni reservas, que son del servicio de
+turnos. Responde "tiene agenda", no "tiene cupo libre".
+
+| HTTP | `code` | Cuándo |
+| --- | --- | --- |
+| 200 | — | la agenda vigente; `schedules` puede venir vacía |
+| 404 | `PROFESSIONAL_NOT_FOUND` | no está en la copia local |
+| 409 | `PROFESSIONAL_DISABLED` | existe pero está deshabilitado: turnos debe rechazar una operación nueva |
+| 503 | `CATALOG_NOT_SYNCHRONIZED` | todavía no hay versión aplicada: reintentar |
+
+El 409 se distingue del 404 a propósito: turnos necesita saber si rechazar una
+operación nueva o si informar un dato histórico que ya guardó (§4.2).
+
+**Esta es la única vía por la que el servicio de turnos accede a estos datos.**
+§3 le prohíbe acceder a las tablas, repositorios o estructuras internas de este
+servicio, usar una base compartida como mecanismo de integración y duplicar una
+réplica del catálogo para búsquedas o reservas nuevas. El rol de base
+`catalogo` es dueño solo de su base lógica y no tiene permisos cruzados, así que
+la prohibición no depende solo de la disciplina: no hay credencial con la que
+turnos pueda leer estas tablas.
+
+### La búsqueda de profesionales: lo que consume la app KMP
+
+```
+GET /api/professionals?categoryId=7&name=gomez&enabled=true&page=0&size=20
+Authorization: Bearer <jwt-usuario-final>
+```
+
+Los tres filtros son **opcionales y combinables**; sin ninguno devuelve el
+catálogo completo paginado.
+
+| Parámetro | Qué hace |
+| --- | --- |
+| `categoryId` | categoría exacta |
+| `name` | coincidencia **parcial** sobre nombre y apellido juntos, insensible a mayúsculas y acentos: `gomez` encuentra a `Gómez`. En blanco equivale a no filtrar |
+| `enabled` | estado exacto. `false` trae solo los deshabilitados, que la copia conserva como baja lógica (§14.4) |
+| `availableOn` | día de la semana en el que tiene que tener agenda: `MONDAY`…`SUNDAY` |
+| `availableFrom` / `availableTo` | franja horaria, `HH:mm` o `HH:mm:ss`. Van siempre las dos |
+| `page` | página, base cero. Por defecto `0` |
+| `size` | elementos por página. Por defecto `20`, máximo `100` |
+
+#### La disponibilidad responde "tiene agenda", no "tiene cupo libre"
+
+Es la parte del filtro que hay que leer con cuidado, porque la palabra promete
+más de lo que este servicio puede saber. El criterio implementado es:
+
+> Un profesional está disponible cuando **está habilitado** y tiene **al menos
+> un horario habilitado** que cae dentro del día o del rango pedido.
+
+Nada más. Un profesional que atiende los lunes de 09:00 a 13:00 y tiene toda esa
+mañana reservada **sigue cumpliendo el filtro**. Decir lo contrario exigiría
+conocer las ocupaciones, y acá no hay ocupaciones, bloqueos ni reservas: eso vive
+en el servicio de turnos (§4.2 y §7 del enunciado). Es un prefiltro sobre reglas
+de agenda, útil para no ofrecerle al usuario profesionales que no atienden nunca
+ese día; el cupo concreto lo resuelve turnos cruzando esta agenda con sus
+reservas.
+
+Tres detalles del comportamiento:
+
+- **El rango se cruza por solapamiento, no por contención.** Un horario de 09:00
+  a 13:00 cumple un pedido de 10:00 a 11:00. Exigir contención preguntaría
+  "¿atiende exclusivamente dentro de esta franja?", que no es lo que nadie
+  quiere saber.
+- **El borde exacto no cuenta.** Un horario que termina a las 13:00 no cumple un
+  pedido que empieza a las 13:00: la intersección duraría cero.
+- **El día y el rango son independientes.** Se puede pedir solo el día
+  (`?availableOn=MONDAY`), solo la franja
+  (`?availableFrom=09:00&availableTo=13:00`) o las dos. Lo que no se acepta es
+  media franja.
+
+Combinarlo con `enabled=false` devuelve una página vacía, y es correcto: estar
+disponible incluye estar habilitado, así que pedir "deshabilitados y
+disponibles" es pedir algo que por definición no existe.
+
+**El orden es fijo: apellido, nombre, id, ascendente.** No se recibe del
+cliente, y eso es deliberado. Un `?sort=` convertiría el nombre de una columna
+en entrada del usuario, y el orden es algo que la app puede dar por sentado
+justamente porque no se negocia en cada llamada. El `id` desempata a los
+homónimos: sin ese tercer criterio el orden no es total, y un profesional en el
+borde de una página puede repetirse en la siguiente o perderse.
+
+La respuesta trae `content`, `page` —`number`, `size`, `totalElements`,
+`totalPages`— y `catalogVersion`, la versión local con la que se resolvió la
+búsqueda.
+
+| HTTP | `code` | Cuándo |
+| --- | --- | --- |
+| 200 | — | la página; `content` vacío es una respuesta válida, no un error |
+| 400 | `VALIDATION_ERROR` | página negativa, `size` fuera de rango o un tipo que no corresponde |
+| 400 | `INVALID_AVAILABILITY_FILTER` | día inexistente, hora mal formada, media franja o rango invertido |
+| 503 | `CATALOG_NOT_SYNCHRONIZED` | todavía no hay versión aplicada: reintentar |
+
+Los dos 400 están separados a propósito: el segundo no lo detecta el binding de
+Spring —son cadenas bien formadas que solo el dominio sabe rechazar— y en la app
+se corrigen en controles distintos de la misma pantalla.
+
+El 503 no contradice que una página vacía sea válida: son dos cosas distintas.
+`content: []` significa "no hay profesionales que cumplan los filtros" y no se
+arregla reintentando; el 503 significa "todavía no hay catálogo" y sí.
+
+**Las búsquedas nunca consultan al servicio central.** §6.2 lo prohíbe y es la
+razón por la que este servicio mantiene una copia local: una búsqueda que
+saliera a la red por cada tecleo del usuario convertiría al servicio de la
+cátedra en el cuello de botella de la app. Se resuelve entero en PostgreSQL, con
+el índice de trigramas que la migración `V1` creó para el filtro de nombre. Lo
+verifica una prueba que reemplaza el puerto del snapshot por un doble y falla si
+una búsqueda lo llega a invocar.
+
+**Toda la API es de solo lectura.** La copia local se escribe desde la
+sincronización con la cátedra, que es la fuente autoritativa, y nunca por HTTP.
+Lo fija una prueba que le pregunta a Spring qué rutas quedaron registradas y
+falla si alguna acepta un método que escriba.
+
+El contrato completo —DTOs campo por campo, autenticación, errores, garantías
+de consistencia y criterio de versionado— está en
+[`docs/contratos/catalogo-turnos.md`](docs/contratos/catalogo-turnos.md), con el
+documento OpenAPI versionado en
+[`docs/contratos/openapi.yaml`](docs/contratos/openapi.yaml). Ese `.yaml` no se
+edita a mano: lo genera el servicio y una prueba falla si deja de coincidir con
+lo que realmente responde.
+
+```bash
+# regenerarlo cuando el cambio de contrato es intencional
+./mvnw test -Dtest=ContratoOpenApiVersionadoTest -Dcontrato.exportar=true
+```
+
 ## Stack
 
 | | |
@@ -386,6 +584,128 @@ devuelve **200**, porque cae en el catch-all del frontend del servidor. Lo
 que confirma que un endpoint existe es el **401** (existe y pide
 autenticación), no el 200.
 
+### El alta de la cuenta técnica (una sola vez, a mano)
+
+La cuenta técnica identifica a este proyecto ante la cátedra y es la que usan
+**los dos backends** del alumno. Se crea una única vez a mano, con Postman o
+`curl`, contra un endpoint que no pide autenticación (§5.1 de la referencia de
+integración). La aplicación nunca da de alta la cuenta: solo se autentica con
+ella.
+
+Estando en la red ZeroTier:
+
+```bash
+curl -X POST http://IP-DEL-SERVIDOR:PUERTO-API/api/student/register \
+  -H 'Content-Type: application/json' \
+  -d '{
+        "login": "mi.usuario",
+        "password": "una-clave-propia",
+        "groupId": "Proyecto Nombre Apellido",
+        "email": "mi.usuario@example.com",
+        "langKey": "es"
+      }'
+```
+
+`groupId` se normaliza del lado de la cátedra: minúsculas ASCII, lo no
+alfanumérico pasa a `-`, y el resultado tiene que quedar con tres caracteres o
+más. `Proyecto Nombre Apellido` queda `proyecto-nombre-apellido`.
+
+La respuesta `201` trae `id_token` y un objeto `integration`. De todo eso, lo
+único que va a `.env` son las credenciales:
+
+```bash
+CATEDRA_TECHNICAL_USERNAME=mi.usuario
+CATEDRA_TECHNICAL_PASSWORD=una-clave-propia
+```
+
+**El `id_token` no se guarda en ninguna parte.** El servicio lo obtiene solo,
+haciendo `POST /api/authenticate` con `rememberMe: true` al arrancar, y lo
+mantiene únicamente en memoria: no va a la base, ni a Redis, ni al repositorio,
+ni a la app KMP. Cada reinicio vuelve a pedirlo, que cuesta un viaje y evita
+tener la credencial escrita en algún lado.
+
+Lo mismo vale para el resto del objeto `integration` —namespaces de Redis,
+consumer group, los tres topics—: el servicio lo lee en tiempo de ejecución de
+`GET /api/student/integration` y no hay nada de eso fijo en el código. Las
+variables `REDIS_*` y `KAFKA_BOOTSTRAP_SERVERS` de `.env` siguen ahí porque el
+contrato informa nombres internos (`redis.catedra.internal`) que desde ZeroTier
+no resuelven, mientras que lo que sí se alcanza es la IP del servidor; cuál de
+los dos valores usa cada adaptador se decide en los issues de Redis
+([#23](https://github.com/manudiiez-um-programacion/turnos-catalogo-sync/issues/23))
+y Kafka
+([#22](https://github.com/manudiiez-um-programacion/turnos-catalogo-sync/issues/22)).
+
+Si el JWT o las credenciales se exponen, no hay revocación: hay que crear otra
+cuenta técnica, reconfigurar los dos backends e informar a la cátedra (§5.4).
+
+### El arranque verifica la integración y falla si no está habilitada
+
+Al levantar, el servicio se autentica y lee la configuración. Si
+`provisioningStatus` no es `PROVISIONED`, **el arranque falla** con el estado en
+el mensaje:
+
+| Estado | Qué significa y qué hacer |
+| --- | --- |
+| `PENDING` | El alta se registró y la cátedra todavía no la habilitó. Esperar. |
+| `PROVISIONED` | Habilitada. Es el único estado en el que se entrega `redisPassword`. |
+| `FAILED` | El aprovisionamiento falló del lado de la cátedra. Crear otra cuenta e informar. |
+| `REVOKED` | La cuenta fue dada de baja. Crear otra cuenta e informar. |
+
+Es deliberado que no arranque: sin `redisPassword` no se pueden leer los
+cambios incrementales, así que un servicio que arranca igual fallaría más tarde
+con un error de autenticación de Redis que no menciona la causa real.
+
+Para desarrollar sin tocar la cátedra —o cuando el alta todavía no está
+hecha— se puede apagar esa verificación:
+
+```bash
+CATEDRA_API_VERIFY_ON_STARTUP=false
+```
+
+En pruebas ya viene apagada: el perfil `test` la deja en `false` porque CI no
+tiene la red privada ni las credenciales, y no debe tenerlas.
+
+### El arranque sincroniza el catálogo si la base está vacía
+
+Es otra cosa que pasa al levantar, y conviene no confundirla con la anterior:
+la verificación de la cuenta técnica **detiene el arranque**; la
+sincronización inicial **no**.
+
+Si no hay versión de catálogo aplicada —base recién creada—, el servicio pide
+el snapshot completo a la cátedra (§6.1). Si ya hay versión, no pide nada:
+mantenerla al día a partir de ahí es trabajo de la sincronización incremental.
+
+| | Verificación de la cuenta técnica | Sincronización inicial |
+| --- | --- | --- |
+| Cuándo corre | Siempre al arrancar | Solo si no hay versión local |
+| Si falla | El proceso termina con error | El servicio queda arriba, sin catálogo |
+| Dónde se ve | En el log, al arrancar | `/actuator/health` y la tabla `sync_run` |
+| Se apaga con | `CATEDRA_API_VERIFY_ON_STARTUP=false` | `SYNC_STARTUP_ENABLED=false` |
+
+La diferencia tiene un motivo: sin configuración técnica no hay nada que este
+servicio pueda hacer nunca, mientras que sin catálogo todavía atiende, valida
+tokens e informa su estado. Y tumbar el proceso cuando la cátedra no responde
+—el fallo más probable, porque el servidor solo existe dentro de ZeroTier—
+dejaría el contenedor reiniciándose en ciclo contra un servidor que no va a
+contestar.
+
+El trabajo corre en un hilo aparte, así que no atrasa el arranque ni la señal
+de "listo" que lee un orquestador. Para ver en qué estado quedó:
+
+```bash
+# con detalle solo en el perfil local; fuera de ahí responde el UP pelado
+curl -s http://localhost:8080/actuator/health | jq '.components.catalogSync'
+# { "status": "UP", "details": { "estado": "SIN_CATALOGO", ... } }
+```
+
+`SIN_CATALOGO` es el estado degradado: el servicio responde, pero las búsquedas
+no van a devolver resultados hasta que una sincronización termine bien. El
+motivo del fallo queda en `sync_run` y `sync_error`, con un código estable.
+
+Dentro de Docker Compose esto **va a fallar** mientras el enrutamiento no esté
+resuelto, por lo que explica la sección siguiente. Se deja encendido igual: un
+`WARN` que nombra el problema es mejor que un catálogo vacío en silencio.
+
 ### El contenedor no alcanza al servidor, pero el host sí
 
 Este es el problema no obvio del entorno. Con la configuración de Docker por
@@ -505,6 +825,10 @@ ninguna `@Entity` JPA ni DTO web puede aparecer en una firma de `domain` o
 
 - [`docs/catedra/PROJECT_STATEMENT-v1.md`](docs/catedra/PROJECT_STATEMENT-v1.md) — enunciado de la cátedra.
 - [`docs/catedra/INTEGRATION_REFERENCE-v2.md`](docs/catedra/INTEGRATION_REFERENCE-v2.md) — contratos externos (REST, Redis, Kafka). Es la fuente de verdad: no se inventan campos, endpoints ni claves.
+- [`docs/arquitectura.md`](docs/arquitectura.md) — los diagramas de arquitectura: el sistema completo (app KMP, los dos servicios, sus bases y las integraciones con la cátedra) y este servicio por dentro.
+- [`docs/contratos/catalogo-turnos.md`](docs/contratos/catalogo-turnos.md) — el contrato REST con el servicio de turnos: operaciones, DTOs, autenticación, errores, consistencia y versionado.
+- [`docs/contratos/openapi.yaml`](docs/contratos/openapi.yaml) — el mismo contrato en OpenAPI, generado por el servicio y verificado por una prueba.
+- [`docs/adr/`](docs/adr/) — decisiones de arquitectura, una por archivo, con su índice.
 - `CLAUDE.md` — contexto del repositorio y reglas no negociables.
 - `.claude/skills/` — flujo de git del proyecto y convenciones de arquitectura hexagonal.
 

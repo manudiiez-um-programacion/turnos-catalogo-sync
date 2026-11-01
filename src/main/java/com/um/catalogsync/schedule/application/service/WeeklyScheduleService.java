@@ -1,6 +1,8 @@
 package com.um.catalogsync.schedule.application.service;
 
+import com.um.catalogsync.schedule.domain.model.CurrentAgenda;
 import com.um.catalogsync.schedule.domain.model.WeeklySchedule;
+import com.um.catalogsync.schedule.domain.ports.in.GetCurrentAgendaUseCase;
 import com.um.catalogsync.schedule.domain.ports.in.GetSchedulesByProfessionalUseCase;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,7 @@ import org.springframework.stereotype.Service;
 public class WeeklyScheduleService {
 
     private final GetSchedulesByProfessionalUseCase getSchedulesByProfessional;
+    private final GetCurrentAgendaUseCase getCurrentAgenda;
 
     /**
      * @return la agenda del profesional ordenada por dia y hora de inicio;
@@ -32,5 +35,13 @@ public class WeeklyScheduleService {
      */
     public List<WeeklySchedule> getByProfessional(Long professionalId) {
         return getSchedulesByProfessional.getByProfessional(professionalId);
+    }
+
+    /**
+     * La agenda vigente de un profesional, para el contrato con el servicio de
+     * turnos (#18).
+     */
+    public CurrentAgenda getCurrentAgenda(Long professionalId) {
+        return getCurrentAgenda.getByProfessional(professionalId);
     }
 }

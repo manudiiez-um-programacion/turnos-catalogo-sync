@@ -3,6 +3,7 @@ package com.um.catalogsync.schedule.application.usecases;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.um.catalogsync.schedule.domain.model.DayOfWeek;
+import com.um.catalogsync.schedule.domain.model.AvailabilityCriteria;
 import com.um.catalogsync.schedule.domain.model.WeeklySchedule;
 import com.um.catalogsync.schedule.domain.ports.out.WeeklyScheduleRepository;
 import java.time.LocalTime;
@@ -62,6 +63,10 @@ class GetSchedulesByProfessionalUseCaseImplTest {
 
             @Override
             public long deleteByIdIn(Collection<Long> ids) {
+                throw new UnsupportedOperationException();
+            }
+            @Override
+            public List<Long> findProfessionalIdsWithAgendaIn(AvailabilityCriteria criteria) {
                 throw new UnsupportedOperationException();
             }
         };

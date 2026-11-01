@@ -167,14 +167,14 @@ flowchart LR
         direction TB
         prepos["CategoryRepository<br/>ProfessionalRepository<br/>WeeklyScheduleRepository<br/>CatalogVersionRepository<br/>SyncRunRepository"]
         prest["CatalogSnapshotPort<br/>TechnicalAuthPort<br/>IntegrationConfigPort"]
-        predis["CatalogVersionPort<br/>CatalogChangesPort"]
+        predis["PublishedCatalogPort"]
     end
 
     subgraph adapOut["Adaptadores de salida"]
         direction TB
         ajpa["5 · Persistencia JPA<br/>infrastructure/persistence"]
         acliente["2 · Cliente REST de la cátedra<br/>infrastructure/client"]
-        aredis["3 · Redis<br/>infrastructure/cache"]
+        aredis["3 · Redis de la cátedra<br/>infrastructure/redis"]
     end
 
     subgraph salen["Afuera: a quien se llama"]
@@ -217,9 +217,9 @@ flowchart LR
     classDef pendiente fill:#fff8e1,stroke:#b8860b,stroke-width:2px,stroke-dasharray:5 4,color:#5d4037
     classDef externo fill:#eceff1,stroke:#78909c,stroke-width:1px,color:#263238
     classDef fuera fill:#eceff1,stroke:#78909c,stroke-width:1px,stroke-dasharray:5 4,color:#263238
-    class aweb,acliente,ajpa,professional,schedule,syncs,category,integration,shared propio
-    class pbusqueda,pagenda,prepos,prest puerto
-    class akafka,aredis,pcambios,predis pendiente
+    class aweb,acliente,ajpa,aredis,professional,schedule,syncs,category,integration,shared propio
+    class pbusqueda,pagenda,prepos,prest,predis puerto
+    class akafka,pcambios pendiente
     class capi2,credis2,pg2,ckafka2 externo
     class kmp2,turnos2 fuera
     style adapIn fill:#f6faff,stroke:#1f6feb,color:#0a2540
@@ -231,12 +231,20 @@ flowchart LR
     style salen fill:#fafafa,stroke:#78909c,color:#263238
 ```
 
-Lo amarillo punteado —el adaptador de Kafka, el de Redis y sus puertos—
-**todavía no está implementado**: son los issues de M3. Está en el diagrama
-porque son dos de las cinco superficies externas previstas en el ADR 0001 y
-porque sus puertos condicionan el diseño del slice `sync`; esos nombres salen
-del ADR y pueden ajustarse al implementarlos. Todo lo demás del diagrama está
-en el código hoy.
+Lo amarillo punteado —el adaptador de Kafka y el caso de uso que invoca—
+**todavía no está implementado**: es un issue de M3. Está en el diagrama porque
+es una de las cinco superficies externas previstas en el ADR 0001 y porque
+condiciona el diseño del slice `sync`. Todo lo demás del diagrama está en el
+código hoy.
+
+El adaptador de Redis sí existe desde #22, de solo lectura sobre
+`catedra:sync:*`: entrega las dos claves de versión, la metadata y el estado
+vigente de cada entidad por id (§14.2 a §14.4). El puerto quedó llamado
+`PublishedCatalogPort` y no `CatalogVersionPort`, como anticipaba el ADR: lo
+que se lee de ahí no es una versión sino el catálogo que la cátedra publicó, y
+`CatalogVersionPort` se confundiría con el repositorio de la versión local, que
+es otra cosa. La lectura de los cambios incrementales de una versión es otro
+puerto y llega con #23.
 
 `shared` aparece dentro del núcleo y sin ninguna flecha, y es correcto que así
 sea: no modela negocio ni tiene puertos. Es la seguridad, el manejo de errores
@@ -264,7 +272,7 @@ legítima viene de la sincronización.
 | --- | --- | --- | --- | --- |
 | 1 | API REST propia (`infrastructure/web`) | `professional`, `schedule` | `SearchProfessionalsUseCase` (in), `GetCurrentAgendaUseCase` (in) | implementado |
 | 2 | Cliente REST de la cátedra (`infrastructure/client`) | `sync`, `integration` | `CatalogSnapshotPort` (out), `TechnicalAuthPort` (out), `IntegrationConfigPort` (out) | implementado |
-| 3 | Redis (`infrastructure/cache`) | `sync` | `CatalogVersionPort` (out), `CatalogChangesPort` (out) | pendiente, M3 |
+| 3 | Redis de la cátedra (`infrastructure/redis`) | `sync` | `PublishedCatalogPort` (out) | implementado (los cambios incrementales, #23) |
 | 4 | Kafka (`infrastructure/messaging`) | `sync` | el caso de uso de aplicación de cambios (in) | pendiente, M3 |
 | 5 | Persistencia JPA (`infrastructure/persistence`) | `category`, `professional`, `schedule`, `sync` | `CategoryRepository`, `ProfessionalRepository`, `WeeklyScheduleRepository`, `CatalogVersionRepository`, `SyncRunRepository` (todos out) | implementado |
 

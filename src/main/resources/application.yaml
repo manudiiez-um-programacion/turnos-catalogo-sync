@@ -92,6 +92,21 @@ catedra:
     # lado seguro de olvidarse de configurarlo es que la verificacion corra.
     verify-on-startup: true
 
+  # Lectura del catalogo publicado en Redis (§14, issue #22).
+  #
+  # Aca solo van los timeouts: el host, el puerto, el usuario y la clave de
+  # Redis NO son configuracion de este servicio, llegan en el objeto
+  # integration que entrega la catedra (§14.1) y pueden cambiar sin que se
+  # reinicie nada.
+  #
+  # Holgados por el mismo motivo que los de la API: el servidor se alcanza
+  # por ZeroTier y el enlace tiene ~228 ms de ida y vuelta medidos (D6). Las
+  # dos son obligatorias y tienen que ser positivas: en cero o negativas
+  # Lettuce esperaria sin limite, que es justo lo que evitan.
+  redis:
+    connect-timeout: 5s
+    command-timeout: 10s
+
 # Sincronizacion al arrancar (issue #14).
 #
 # Con la base recien inicializada —sin version de catalogo aplicada— el

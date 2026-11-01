@@ -1,16 +1,9 @@
 package com.um.catalogsync.sync.infrastructure.client.mapper;
 
-import com.um.catalogsync.category.domain.model.ProfessionalCategory;
-import com.um.catalogsync.professional.domain.model.Professional;
-import com.um.catalogsync.schedule.domain.model.DayOfWeek;
-import com.um.catalogsync.schedule.domain.model.TimeOfDay;
-import com.um.catalogsync.schedule.domain.model.WeeklySchedule;
 import com.um.catalogsync.sync.application.exception.IncompleteCatalogSnapshotException;
 import com.um.catalogsync.sync.domain.model.CatalogSnapshot;
 import com.um.catalogsync.sync.infrastructure.client.dto.CatalogSnapshotDto;
-import com.um.catalogsync.sync.infrastructure.client.dto.ProfessionalCategoryDto;
-import com.um.catalogsync.sync.infrastructure.client.dto.ProfessionalDto;
-import com.um.catalogsync.sync.infrastructure.client.dto.WeeklyScheduleDto;
+import com.um.catalogsync.sync.infrastructure.mapper.CatalogEntityMapper;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiFunction;
@@ -38,11 +31,26 @@ import org.springframework.stereotype.Component;
  * la tomara como vacia, #13 reemplazaria la copia local borrando todas las
  * filas de esa tabla, en silencio y sin que nadie lo pidiera.
  *
+ * <p><b>La traduccion de cada entidad no esta aca</b> sino en
+ * {@link CatalogEntityMapper}, porque las tres entidades llegan con la misma
+ * forma tambien por Redis (§14.4) y tenerla duplicada seria garantizar que
+ * algun dia los dos caminos se arreglen distinto. Lo que queda aca es lo
+ * propio del snapshot: sus dos campos de cabecera y la regla de las
+ * colecciones.
+ *
  * <p>Clase {@code @Component} y con guarda de {@code null} en la entrada,
  * como el resto de los mappers del proyecto.
  */
 @Component
 public class CatalogSnapshotMapper {
+
+    /**
+     * Las entidades, con las fallas contadas como incumplimientos de §7:
+     * este mapper lee el snapshot, asi que un campo faltante es un problema
+     * del snapshot y el mensaje tiene que decir eso.
+     */
+    private final CatalogEntityMapper entidades =
+            new CatalogEntityMapper(IncompleteCatalogSnapshotException::new);
 
     /**
      * @param dto lo que vino en el JSON
@@ -59,61 +67,14 @@ public class CatalogSnapshotMapper {
             return null;
         }
         return CatalogSnapshot.builder()
-                .snapshotVersion(exigir(dto.snapshotVersion(), "snapshotVersion"))
-                .generatedAt(exigir(dto.generatedAt(), "generatedAt"))
+                .snapshotVersion(entidades.exigir(dto.snapshotVersion(), "snapshotVersion"))
+                .generatedAt(entidades.exigir(dto.generatedAt(), "generatedAt"))
                 .categories(mapear(
-                        dto.professionalCategories(), "professionalCategories", this::toDomain))
-                .professionals(mapear(dto.professionals(), "professionals", this::toDomain))
-                .schedules(mapear(dto.weeklySchedules(), "weeklySchedules", this::toDomain))
-                .build();
-    }
-
-    private ProfessionalCategory toDomain(ProfessionalCategoryDto dto, String ruta) {
-        Long id = exigir(dto.id(), ruta + ".id");
-        String donde = "professionalCategories[" + id + "]";
-        return ProfessionalCategory.builder()
-                .id(id)
-                .name(exigir(dto.name(), donde + ".name"))
-                // El unico campo que puede faltar: es el unico que la tabla
-                // local no declara NOT NULL.
-                .description(dto.description())
-                .enabled(exigir(dto.enabled(), donde + ".enabled"))
-                .createdAt(exigir(dto.createdAt(), donde + ".createdAt"))
-                .updatedAt(exigir(dto.updatedAt(), donde + ".updatedAt"))
-                .build();
-    }
-
-    private Professional toDomain(ProfessionalDto dto, String ruta) {
-        Long id = exigir(dto.id(), ruta + ".id");
-        String donde = "professionals[" + id + "]";
-        return Professional.builder()
-                .id(id)
-                .categoryId(exigir(dto.categoryId(), donde + ".categoryId"))
-                .firstName(exigir(dto.firstName(), donde + ".firstName"))
-                .lastName(exigir(dto.lastName(), donde + ".lastName"))
-                .enabled(exigir(dto.enabled(), donde + ".enabled"))
-                .createdAt(exigir(dto.createdAt(), donde + ".createdAt"))
-                .updatedAt(exigir(dto.updatedAt(), donde + ".updatedAt"))
-                .build();
-    }
-
-    private WeeklySchedule toDomain(WeeklyScheduleDto dto, String ruta) {
-        Long id = exigir(dto.id(), ruta + ".id");
-        String donde = "weeklySchedules[" + id + "]";
-        return WeeklySchedule.builder()
-                .id(id)
-                .professionalId(exigir(dto.professionalId(), donde + ".professionalId"))
-                // Las tres traducciones del dominio: el dia y las dos horas.
-                // Si alguna falla, falla con su propia excepcion, que dice
-                // que valor llego y no solo que el campo estaba mal.
-                .dayOfWeek(DayOfWeek.fromContract(exigir(dto.dayOfWeek(), donde + ".dayOfWeek")))
-                .startTime(TimeOfDay.parse(exigir(dto.startTime(), donde + ".startTime")))
-                .endTime(TimeOfDay.parse(exigir(dto.endTime(), donde + ".endTime")))
-                .slotDurationMinutes(
-                        exigir(dto.slotDurationMinutes(), donde + ".slotDurationMinutes"))
-                .enabled(exigir(dto.enabled(), donde + ".enabled"))
-                .createdAt(exigir(dto.createdAt(), donde + ".createdAt"))
-                .updatedAt(exigir(dto.updatedAt(), donde + ".updatedAt"))
+                        dto.professionalCategories(),
+                        "professionalCategories",
+                        entidades::toDomain))
+                .professionals(mapear(dto.professionals(), "professionals", entidades::toDomain))
+                .schedules(mapear(dto.weeklySchedules(), "weeklySchedules", entidades::toDomain))
                 .build();
     }
 
@@ -147,20 +108,5 @@ public class CatalogSnapshotMapper {
             mapeados.add(aDominio.apply(elemento, nombre));
         }
         return mapeados;
-    }
-
-    /**
-     * Devuelve el valor o falla nombrando su ruta en el JSON.
-     *
-     * <p>Las cadenas en blanco cuentan como ausentes: un {@code firstName}
-     * de {@code ""} pasaria el {@code NOT NULL} de la tabla y dejaria un
-     * profesional sin nombre en la busqueda, que es el mismo problema con
-     * otra forma.
-     */
-    private static <T> T exigir(T valor, String ruta) {
-        if (valor == null || (valor instanceof String texto && texto.isBlank())) {
-            throw new IncompleteCatalogSnapshotException("falta el campo \"" + ruta + "\"");
-        }
-        return valor;
     }
 }

@@ -81,10 +81,14 @@ Paquete raíz `com.um.catalogsync`, un subpaquete por slice, cada uno con
 apaga con `SPRINGDOC_ENABLED=false`. Las migraciones son de Flyway, viven
 en `src/main/resources/db/migration` y las aplica la app al arrancar.
 
-Docker Compose levanta solo la app y su PostgreSQL. Redis y Kafka de la
-cátedra son externos y no se levantan acá; lo que pidan las pruebas lo
-levanta Testcontainers. El rol de base `catalogo` es un usuario común, dueño
-solo de su base: el superusuario es aparte y la app no lo usa.
+Docker Compose levanta solo la app y su PostgreSQL, para desarrollo aislado
+del catálogo (D9). Redis y Kafka de la cátedra son externos y no se levantan
+acá; lo que pidan las pruebas lo levanta Testcontainers. El rol de base
+`catalogo` es un usuario común, dueño solo de su base: el superusuario es
+aparte y la app no lo usa. En la solución completa esa misma base y ese
+mismo rol conviven, en una instancia física compartida con el servicio de
+turnos, orquestada por un compose de nivel superior fuera de los dos repos
+de servicio — ver D9 y `docs/adr/0003-instancia-postgres-compartida.md`.
 
 ## Planificación
 El trabajo está planificado en GitHub y **eso es la fuente de verdad**:
@@ -166,6 +170,19 @@ No volver a plantearlas. Están documentadas en `docs/adr/`.
   se elige por el repo de ejemplo de la cátedra, la skill y Spring Boot.
 
 - **Paquete raíz: `com.um.catalogsync`.** Fijo, no se renombra.
+
+- **D9 — Instancia de PostgreSQL compartida con el servicio de turnos.**
+  Decidido el 2026-11-01, en coordinación con `turnos-reservas` (su issue
+  #5). La solución completa usa **una sola instancia física de PostgreSQL**
+  con dos bases lógicas (`catalogo` y `turnos_reservas`), en vez de una
+  instancia por servicio. El `compose.yaml` de este repo sigue siendo para
+  **desarrollo aislado del catálogo**: la instancia compartida se orquesta
+  en un compose de nivel superior que no vive en ninguno de los dos repos
+  de servicio. Contrato entre los dos repos (imagen, punto de montaje,
+  prefijos de scripts de init, variables de entorno, puertos) en
+  `docs/adr/0003-instancia-postgres-compartida.md`. De este lado no hizo
+  falta tocar código: `docker/postgres/init/01-crear-base-catalogo.sh` ya
+  cumplía el contrato.
 
 - **D7 — `testing` y las promociones: libertad, pero se pasa por las tres
   ramas.** Confirmado por Slack el 2026-10-17. El profesor aclaró que pasar por

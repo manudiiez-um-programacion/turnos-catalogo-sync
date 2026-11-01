@@ -14,6 +14,7 @@ reemplace y se marca el anterior como `superseded por NNNN`.
 | --- | --- | --- | --- | --- |
 | [0001](0001-arquitectura-hexagonal.md) | Arquitectura hexagonal con slices verticales | aceptada | 2026-10-14 | #2 |
 | [0002](0002-identidad-y-autenticacion-entre-servicios.md) | Identidad del usuario final y autenticación entre servicios | aceptada | 2026-10-26 | #59 |
+| [0003](0003-instancia-postgres-compartida.md) | Instancia de PostgreSQL compartida con el servicio de turnos | aceptada | 2026-11-01 | #72 |
 
 Estados posibles: `propuesta`, `aceptada`, `rechazada`, `superseded por NNNN`.
 

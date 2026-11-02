@@ -17,6 +17,7 @@ import com.um.catalogsync.sync.domain.ports.out.CatalogVersionRepository;
 import com.um.catalogsync.sync.domain.ports.out.PublishedCatalogPort;
 import com.um.catalogsync.sync.domain.ports.out.SyncRunRepository;
 import java.util.Optional;
+import java.util.concurrent.locks.ReentrantLock;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -63,6 +64,30 @@ import org.springframework.stereotype.Component;
  * y el snapshot abre la propia; esta clase orquesta y registra. Una
  * transaccion que las envolviera convertiria un atraso de diez versiones en
  * una unica unidad de trabajo, que es justo lo que #25 evita.
+ *
+ * <p><b>Una sola sincronizacion a la vez, y el lock vive acá.</b> Tres cosas
+ * pueden pedir sincronizar: una notificacion de Kafka, el chequeo periodico
+ * de reconciliacion y una operacion manual. Si dos se cruzaran, las dos
+ * leerian la misma version local, las dos decidirian avanzar y la segunda
+ * recibiria un {@code ConcurrentVersionAdvanceException} o un
+ * {@code VersionRegressionException} al llegar a {@code advanceTo} —o, peor,
+ * las dos pedirian el snapshot completo y la catedra atenderia dos veces el
+ * mismo trabajo sobre un enlace de ~228 ms (D6)—. El lock esta en este
+ * metodo y no en cada llamador porque es el unico lugar por donde pasan los
+ * tres.
+ *
+ * <p><b>El que no consigue el lock se va, no espera.</b> Lo que estaba por
+ * hacer lo esta haciendo el otro: encolarse solo lograria repetir la misma
+ * comparacion de versiones un rato despues, y la segunda pasada no
+ * encontraria nada que hacer. El unico caso que se pierde es una version
+ * publicada <i>mientras</i> la sincronizacion en curso ya habia leido
+ * {@code current-version}, y ese lo recupera el chequeo periodico (#27), que
+ * es justamente para lo que existe.
+ *
+ * <p>Con una sola instancia del servicio un lock en proceso alcanza. Si
+ * alguna vez hubiera mas de una, habria que moverlo a la base —un
+ * {@code SELECT ... FOR UPDATE} sobre {@code catalog_version}, por ejemplo—
+ * y esta clase seria el unico lugar a tocar.
  */
 @Slf4j
 @Component
@@ -75,8 +100,31 @@ public class SynchronizeCatalogUseCaseImpl implements SynchronizeCatalogUseCase 
     private final RunFullSyncUseCase fullSync;
     private final SyncRunRepository runs;
 
+    /** Garantiza una sola sincronizacion a la vez. Ver el javadoc de la clase. */
+    private final ReentrantLock enCurso = new ReentrantLock();
+
     @Override
     public Optional<SyncRun> synchronize(SyncTrigger trigger) {
+        if (!enCurso.tryLock()) {
+            log.info("Ya hay una sincronizacion en curso: se omite la que pidio {}", trigger);
+            return Optional.empty();
+        }
+        try {
+            return decidirYSincronizar(trigger);
+        } finally {
+            enCurso.unlock();
+        }
+    }
+
+    /**
+     * El arbol de decision, con el lock ya tomado.
+     *
+     * <p>Separado del metodo publico para que el {@code tryLock} y el
+     * {@code unlock} queden en un bloque chico y no haya ningun camino de
+     * salida —ni los {@code return} tempranos ni una excepcion— que se lleve
+     * el lock puesto.
+     */
+    private Optional<SyncRun> decidirYSincronizar(SyncTrigger trigger) {
         Optional<Long> localVersion =
                 versions.findCurrent().map(CatalogVersion::getVersion);
 

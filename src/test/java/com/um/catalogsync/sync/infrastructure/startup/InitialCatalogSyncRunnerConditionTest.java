@@ -33,7 +33,7 @@ class InitialCatalogSyncRunnerConditionTest {
             .withBean(CatalogVersionService.class, () -> new CatalogVersionService(Optional::empty))
             .withBean(
                     CatalogSyncService.class,
-                    () -> new CatalogSyncService(trigger -> null, snapshot -> null))
+                    () -> new CatalogSyncService(trigger -> null, snapshot -> null, version -> null))
             .withUserConfiguration(InitialCatalogSyncRunner.class);
 
     @Test

@@ -85,6 +85,9 @@ class InitialSyncOnStartupIntegrationTest extends AbstractPostgresIntegrationTes
                         // que avanzar.
                         version -> {
                             throw new AssertionError("no corresponde en el arranque");
+                        },
+                        trigger -> {
+                            throw new AssertionError("el arranque no vuelve a decidir");
                         }),
                 Runnable::run);
     }

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.um.catalogsync.shared.infrastructure.AbstractPostgresIntegrationTest;
 import com.um.catalogsync.sync.domain.model.SyncErrorCode;
+import com.um.catalogsync.sync.domain.model.SyncDecisionReason;
 import com.um.catalogsync.sync.domain.model.SyncMode;
 import com.um.catalogsync.sync.domain.model.SyncRun;
 import com.um.catalogsync.sync.domain.model.SyncStatus;
@@ -46,9 +47,48 @@ class JpaSyncRunRepositoryAdapterTest extends AbstractPostgresIntegrationTest {
     }
 
     @Test
+    @DisplayName("El motivo de la decision se guarda y se lee de vuelta")
+    void guardaElMotivoDeLaDecision() {
+        // Es lo que distingue las tres discontinuidades entre si: con
+        // mode = FULL se sabe que se reconstruyo, y con esto se sabe si fue
+        // porque la version local salio de la ventana retenida, porque
+        // faltaba una version intermedia o porque no se pudo verificar el
+        // estado del origen (§6.2, §18.2).
+        SyncRun corrida = syncRuns.start(SyncMode.FULL, SyncTrigger.EVENT,
+                SyncDecisionReason.VERSION_OUT_OF_WINDOW, 3L);
+
+        assertThat(corrida.getDecisionReason())
+                .isEqualTo(SyncDecisionReason.VERSION_OUT_OF_WINDOW);
+        assertThat(filas()).singleElement().satisfies(fila ->
+                assertThat(fila.get("decision_reason")).isEqualTo("VERSION_OUT_OF_WINDOW"));
+    }
+
+    @Test
+    @DisplayName("Los seis motivos pasan el CHECK de la migracion")
+    void todosLosMotivosSonValidos() {
+        // El CHECK de V3 y el enum tienen que decir lo mismo. Si alguien
+        // agrega un valor al enum y se olvida de la migracion, el INSERT
+        // falla recien en produccion; acá falla en la prueba.
+        for (SyncDecisionReason motivo : SyncDecisionReason.values()) {
+            syncRuns.start(SyncMode.FULL, SyncTrigger.MANUAL, motivo, null);
+        }
+
+        assertThat(filas()).hasSize(SyncDecisionReason.values().length);
+    }
+
+    @Test
+    @DisplayName("Una corrida sin motivo se acepta: las anteriores a V3 no lo tienen")
+    void elMotivoPuedeSerNulo() {
+        syncRuns.start(SyncMode.FULL, SyncTrigger.STARTUP, null, null);
+
+        assertThat(filas()).singleElement().satisfies(fila ->
+                assertThat(fila.get("decision_reason")).isNull());
+    }
+
+    @Test
     @DisplayName("start deja la corrida en RUNNING, sin fin y sin to_version")
     void arranca() {
-        SyncRun corrida = syncRuns.start(SyncMode.FULL, SyncTrigger.STARTUP, 5L);
+        SyncRun corrida = syncRuns.start(SyncMode.FULL, SyncTrigger.STARTUP, SyncDecisionReason.REQUESTED, 5L);
 
         // El CHECK ck_sync_run_finished_at exige RUNNING sin fin, y es lo
         // unico que esta firma permite expresar.
@@ -63,7 +103,7 @@ class JpaSyncRunRepositoryAdapterTest extends AbstractPostgresIntegrationTest {
     @Test
     @DisplayName("Con base vacia, from_version queda nulo")
     void arrancaSinVersionPrevia() {
-        syncRuns.start(SyncMode.FULL, SyncTrigger.STARTUP, null);
+        syncRuns.start(SyncMode.FULL, SyncTrigger.STARTUP, SyncDecisionReason.REQUESTED, null);
 
         assertThat(filas()).singleElement()
                 .satisfies(fila -> assertThat(fila).containsEntry("from_version", null));
@@ -72,7 +112,7 @@ class JpaSyncRunRepositoryAdapterTest extends AbstractPostgresIntegrationTest {
     @Test
     @DisplayName("succeed escribe estado, fin y to_version juntos")
     void termina() {
-        SyncRun abierta = syncRuns.start(SyncMode.FULL, SyncTrigger.EVENT, 5L);
+        SyncRun abierta = syncRuns.start(SyncMode.FULL, SyncTrigger.EVENT, SyncDecisionReason.REQUESTED, 5L);
 
         SyncRun cerrada = syncRuns.succeed(abierta.getId(), 7L);
 
@@ -88,7 +128,7 @@ class JpaSyncRunRepositoryAdapterTest extends AbstractPostgresIntegrationTest {
     @Test
     @DisplayName("fail cierra la corrida y escribe el motivo en la misma transaccion")
     void falla() {
-        SyncRun abierta = syncRuns.start(SyncMode.FULL, SyncTrigger.DISCONTINUITY, 5L);
+        SyncRun abierta = syncRuns.start(SyncMode.FULL, SyncTrigger.DISCONTINUITY, SyncDecisionReason.REQUESTED, 5L);
 
         SyncRun cerrada = syncRuns.fail(
                 abierta.getId(), SyncErrorCode.SNAPSHOT_UNAVAILABLE, "la catedra no responde");
@@ -108,7 +148,7 @@ class JpaSyncRunRepositoryAdapterTest extends AbstractPostgresIntegrationTest {
     @Test
     @DisplayName("Un detalle nulo se acepta: la columna es nulable")
     void fallaSinDetalle() {
-        SyncRun abierta = syncRuns.start(SyncMode.FULL, SyncTrigger.MANUAL, null);
+        SyncRun abierta = syncRuns.start(SyncMode.FULL, SyncTrigger.MANUAL, SyncDecisionReason.REQUESTED, null);
 
         syncRuns.fail(abierta.getId(), SyncErrorCode.UNEXPECTED_ERROR, null);
 
@@ -121,7 +161,7 @@ class JpaSyncRunRepositoryAdapterTest extends AbstractPostgresIntegrationTest {
     void todosLosValoresSonValidos() {
         for (SyncTrigger trigger : SyncTrigger.values()) {
             for (SyncMode mode : SyncMode.values()) {
-                syncRuns.start(mode, trigger, null);
+                syncRuns.start(mode, trigger, SyncDecisionReason.REQUESTED, null);
             }
         }
 
@@ -134,7 +174,7 @@ class JpaSyncRunRepositoryAdapterTest extends AbstractPostgresIntegrationTest {
     @Test
     @DisplayName("Los nueve codigos de error pasan el largo de la columna")
     void todosLosCodigosEntran() {
-        SyncRun abierta = syncRuns.start(SyncMode.FULL, SyncTrigger.MANUAL, null);
+        SyncRun abierta = syncRuns.start(SyncMode.FULL, SyncTrigger.MANUAL, SyncDecisionReason.REQUESTED, null);
 
         for (SyncErrorCode code : SyncErrorCode.values()) {
             syncRuns.fail(abierta.getId(), code, "detalle de " + code);
@@ -149,7 +189,7 @@ class JpaSyncRunRepositoryAdapterTest extends AbstractPostgresIntegrationTest {
         var tx = new TransactionTemplate(txManager);
 
         assertThatThrownBy(() -> tx.executeWithoutResult(estado -> {
-            SyncRun abierta = syncRuns.start(SyncMode.FULL, SyncTrigger.STARTUP, null);
+            SyncRun abierta = syncRuns.start(SyncMode.FULL, SyncTrigger.STARTUP, SyncDecisionReason.REQUESTED, null);
             syncRuns.fail(abierta.getId(), SyncErrorCode.CATALOG_INCONSISTENT, "se contradice");
             throw new IllegalStateException("la unidad de trabajo falla despues");
         })).isInstanceOf(IllegalStateException.class);

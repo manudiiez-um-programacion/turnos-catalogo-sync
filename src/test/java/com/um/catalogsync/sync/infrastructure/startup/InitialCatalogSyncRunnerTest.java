@@ -16,6 +16,7 @@ import com.um.catalogsync.sync.domain.model.SyncTrigger;
 import com.um.catalogsync.sync.domain.ports.in.ApplyCatalogSnapshotUseCase;
 import com.um.catalogsync.sync.domain.ports.in.ApplyIncrementalChangesUseCase;
 import com.um.catalogsync.sync.domain.ports.in.RunFullSyncUseCase;
+import com.um.catalogsync.sync.domain.ports.in.SynchronizeCatalogUseCase;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -69,7 +70,11 @@ class InitialCatalogSyncRunnerTest {
             throw new AssertionError("El arranque con base vacia no va por el camino"
                     + " incremental: no hay version local desde la que avanzar");
         };
-        return new CatalogSyncService(completa, noCorresponde, noIncremental);
+        SynchronizeCatalogUseCase noDecide = trigger -> {
+            throw new AssertionError("El arranque ya sabe que corresponde una completa:"
+                    + " no vuelve a comparar versiones");
+        };
+        return new CatalogSyncService(completa, noCorresponde, noIncremental, noDecide);
     }
 
     private static SyncRun corridaExitosa(long hasta) {
@@ -90,7 +95,7 @@ class InitialCatalogSyncRunnerTest {
         List<SyncTrigger> motivos = new ArrayList<>();
         InitialCatalogSyncRunner runner = new InitialCatalogSyncRunner(
                 versionLocal(null),
-                sincronizacion(trigger -> {
+                sincronizacion((trigger, motivo) -> {
                     motivos.add(trigger);
                     return corridaExitosa(12L);
                 }),
@@ -108,7 +113,8 @@ class InitialCatalogSyncRunnerTest {
     void conVersionLocalNoSincroniza() {
         InitialCatalogSyncRunner runner = new InitialCatalogSyncRunner(
                 versionLocal(VERSION_APLICADA),
-                sincronizacion(trigger -> fail("No tenia que pedir el snapshot: ya habia version")),
+                sincronizacion((trigger, motivo) ->
+                        fail("No tenia que pedir el snapshot: ya habia version")),
                 Runnable::run);
 
         assertThatCode(runner::sincronizarSiHaceFalta).doesNotThrowAnyException();
@@ -119,7 +125,7 @@ class InitialCatalogSyncRunnerTest {
     void conLaCatedraCaidaNoTumbaElServicio() {
         InitialCatalogSyncRunner runner = new InitialCatalogSyncRunner(
                 versionLocal(null),
-                sincronizacion(trigger -> {
+                sincronizacion((trigger, motivo) -> {
                     throw new CatalogSnapshotUnavailableException(
                             "la catedra no responde", new RuntimeException("connect timed out"));
                 }),
@@ -140,7 +146,7 @@ class InitialCatalogSyncRunnerTest {
         List<SyncTrigger> motivos = new ArrayList<>();
         InitialCatalogSyncRunner runner = new InitialCatalogSyncRunner(
                 versionLocal(null),
-                sincronizacion(trigger -> {
+                sincronizacion((trigger, motivo) -> {
                     motivos.add(trigger);
                     return corridaExitosa(12L);
                 }),

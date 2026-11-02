@@ -6,50 +6,33 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.um.catalogsync.integration.IntegrationFixtures;
 import com.um.catalogsync.integration.domain.model.IntegrationConfig;
 import com.um.catalogsync.integration.domain.model.ProvisioningStatus;
-import com.um.catalogsync.integration.domain.ports.in.GetIntegrationConfigUseCase;
 import com.um.catalogsync.schedule.domain.model.DayOfWeek;
-import com.um.catalogsync.shared.domain.model.Secret;
 import com.um.catalogsync.sync.application.exception.MalformedPublishedCatalogException;
 import com.um.catalogsync.sync.application.exception.PublishedCatalogUnavailableException;
 import com.um.catalogsync.sync.domain.model.PublishedCatalogMetadata;
 import com.um.catalogsync.sync.infrastructure.redis.CatedraRedisConnection;
-import com.um.catalogsync.sync.infrastructure.redis.CatedraRedisProperties;
+import com.um.catalogsync.sync.infrastructure.redis.CatedraRedisForTests;
 import com.um.catalogsync.sync.infrastructure.redis.PublishedCatalogFixtures;
 import com.um.catalogsync.sync.infrastructure.redis.PublishedCatalogKeys;
 import com.um.catalogsync.sync.infrastructure.redis.mapper.PublishedCatalogMapper;
 import io.lettuce.core.RedisCommandExecutionException;
-import java.io.IOException;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalTime;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.testcontainers.containers.GenericContainer;
 import tools.jackson.databind.ObjectMapper;
 
 /**
  * El adaptador de lectura contra un Redis real con la ACL de la catedra.
  *
- * <p>Redis de verdad por Testcontainers y no un doble en memoria: lo que se
- * prueba son las tres cosas que un doble se saltearia —que
- * {@code HGET}/{@code HGETALL} distingan ausencia de vacio como lo hace
- * Redis, que la autenticacion con usuario y clave funcione, y que los
- * permisos sean los que §14.1 describe—. La ultima es la que importa mas: un
- * doble aceptaria cualquier comando, y el criterio del issue es justamente
- * que no se escriba en {@code catedra:sync:*} ni se toque
- * {@code catedra:holds:*}.
- *
- * <p><b>La ACL se configura igual que la de la catedra:</b> lectura sobre
- * {@code catedra:sync:*}, lectura y escritura sobre
- * {@code alumnos:{groupId}:*} y nada mas. Se usa la forma {@code %R~} de
- * Redis 7, que concede un patron de claves solo para lectura, asi que un
- * intento de escritura sobre el namespace de la catedra falla aca igual que
- * fallaria en produccion. Dos pruebas lo comprueban con comandos crudos: el
- * puerto no ofrece escrituras, asi que no hay otra forma de demostrar que el
- * permiso no esta.
+ * <p>Redis de verdad por Testcontainers y con la ACL de §14.1, los dos de
+ * {@link CatedraRedisForTests}: un doble en memoria aceptaria cualquier
+ * comando, y el criterio del issue es justamente que no se escriba en
+ * {@code catedra:sync:*} ni se toque {@code catedra:holds:*}. Dos pruebas lo
+ * comprueban con comandos crudos, porque el puerto no ofrece escrituras y no
+ * hay otra forma de demostrar que el permiso no esta.
  *
  * <p><b>El adaptador se arma a mano</b> con un doble del unico puerto que no
  * es Redis —la configuracion de integracion, de donde salen host, puerto,
@@ -59,21 +42,7 @@ import tools.jackson.databind.ObjectMapper;
  */
 class RedisPublishedCatalogAdapterTest {
 
-    private static final String USUARIO = "grp_" + IntegrationFixtures.GROUP_ID;
-    private static final String CLAVE = IntegrationFixtures.REDIS_PASSWORD_FALSA;
-
-    private static final GenericContainer<?> REDIS =
-            new GenericContainer<>("redis:8-alpine").withExposedPorts(6379);
-
-    static {
-        REDIS.start();
-        aclDeLaCatedra();
-    }
-
-    @AfterAll
-    static void apagarRedis() {
-        REDIS.stop();
-    }
+    private static final String CLAVE = CatedraRedisForTests.CLAVE;
 
     /** La configuracion que el adaptador va a ver. Las pruebas la cambian. */
     private IntegrationConfig configuracion;
@@ -83,9 +52,9 @@ class RedisPublishedCatalogAdapterTest {
 
     @BeforeEach
     void prepararAdaptador() {
-        redisCli("FLUSHALL");
-        configuracion = apuntandoA(REDIS.getMappedPort(6379), CLAVE);
-        conexion = conexionCon(() -> configuracion);
+        CatedraRedisForTests.limpiar();
+        configuracion = apuntandoA(CatedraRedisForTests.puerto(), CLAVE);
+        conexion = CatedraRedisForTests.conexionCon(() -> configuracion);
         adaptador = new RedisPublishedCatalogAdapter(
                 conexion, new PublishedCatalogMapper(new ObjectMapper()));
     }
@@ -304,7 +273,8 @@ class RedisPublishedCatalogAdapterTest {
     void siNoSeLlegaARedisEsUnErrorDeDisponibilidad() {
         // Puerto cerrado: el connect timeout corta y el mensaje manda a
         // mirar ZeroTier, que es la causa mas comun.
-        CatedraRedisConnection inalcanzable = conexionCon(() -> apuntandoA(1, CLAVE));
+        CatedraRedisConnection inalcanzable =
+                CatedraRedisForTests.conexionCon(() -> apuntandoA(1, CLAVE));
 
         assertThatThrownBy(() -> new RedisPublishedCatalogAdapter(
                         inalcanzable, new PublishedCatalogMapper(new ObjectMapper()))
@@ -316,8 +286,8 @@ class RedisPublishedCatalogAdapterTest {
     @Test
     @DisplayName("Si la clave de Redis es otra, la falla no se confunde con un dato faltante")
     void laClaveEquivocadaEsUnErrorDeDisponibilidad() {
-        CatedraRedisConnection conClaveMala =
-                conexionCon(() -> apuntandoA(REDIS.getMappedPort(6379), "clave-que-no-es"));
+        CatedraRedisConnection conClaveMala = CatedraRedisForTests.conexionCon(
+                () -> apuntandoA(CatedraRedisForTests.puerto(), "clave-que-no-es"));
 
         assertThatThrownBy(() -> new RedisPublishedCatalogAdapter(
                         conClaveMala, new PublishedCatalogMapper(new ObjectMapper()))
@@ -328,8 +298,8 @@ class RedisPublishedCatalogAdapterTest {
     @Test
     @DisplayName("Sin redisPassword, el mensaje manda al alta de la cuenta tecnica")
     void sinClaveAvisaDelAlta() {
-        CatedraRedisConnection sinClave =
-                conexionCon(() -> IntegrationFixtures.conEstado(ProvisioningStatus.PENDING));
+        CatedraRedisConnection sinClave = CatedraRedisForTests.conexionCon(
+                () -> IntegrationFixtures.conEstado(ProvisioningStatus.PENDING));
 
         assertThatThrownBy(() -> sinClave.comandos())
                 .isInstanceOf(PublishedCatalogUnavailableException.class)
@@ -353,15 +323,8 @@ class RedisPublishedCatalogAdapterTest {
 
     // --- Auxiliares -------------------------------------------------------
 
-    private CatedraRedisConnection conexionCon(GetIntegrationConfigUseCase integracion) {
-        return new CatedraRedisConnection(
-                integracion,
-                new CatedraRedisProperties(Duration.ofSeconds(1), Duration.ofSeconds(2)));
-    }
-
     private static IntegrationConfig apuntandoA(int puerto, String clave) {
-        return IntegrationFixtures.conRedisEn(
-                REDIS.getHost(), puerto, USUARIO, Secret.of(clave));
+        return CatedraRedisForTests.apuntandoA(puerto, clave);
     }
 
     private void dadaLaMetadataDeLaReferencia() {
@@ -384,35 +347,7 @@ class RedisPublishedCatalogAdapterTest {
                 PublishedCatalogFixtures.horario());
     }
 
-    /**
-     * Configura el usuario con los permisos que describe §14.1.
-     *
-     * <p>{@code %R~} concede un patron de claves <b>solo para lectura</b>, y
-     * {@code %RW~} lectura y escritura. Es lo que hace que las pruebas de
-     * permisos de arriba prueben algo: sin esto, el usuario tendria acceso a
-     * todo y escribir en {@code catedra:sync:*} funcionaria.
-     */
-    private static void aclDeLaCatedra() {
-        redisCli("ACL", "SETUSER", USUARIO, "on", ">" + CLAVE,
-                "%R~" + PublishedCatalogKeys.NAMESPACE + "*",
-                "%RW~alumnos:" + IntegrationFixtures.GROUP_ID + ":*",
-                "+@read", "+@write", "+@connection");
-    }
-
-    /** Corre un comando como el usuario por defecto, que no tiene ACL. */
     private static void redisCli(String... comando) {
-        String[] argv = new String[comando.length + 1];
-        argv[0] = "redis-cli";
-        System.arraycopy(comando, 0, argv, 1, comando.length);
-        try {
-            var resultado = REDIS.execInContainer(argv);
-            if (resultado.getExitCode() != 0 || resultado.getStdout().startsWith("ERR")) {
-                throw new IllegalStateException(
-                        "redis-cli fallo: " + resultado.getStdout() + resultado.getStderr());
-            }
-        } catch (IOException | InterruptedException error) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("No se pudo correr redis-cli en el contenedor", error);
-        }
+        CatedraRedisForTests.cli(comando);
     }
 }

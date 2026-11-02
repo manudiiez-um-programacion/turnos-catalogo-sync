@@ -3,9 +3,11 @@ package com.um.catalogsync.sync.application.exception;
 /**
  * Redis respondio, pero lo que trajo no cumple el contrato de §14.
  *
- * <p>Cubre tres casos: una clave de version que no es un numero decimal, el
- * hash de metadata al que le falta un campo, y el JSON de una entidad que no
- * se puede parsear o al que le falta un campo obligatorio.
+ * <p>Cubre cuatro casos: una clave de version que no es un numero decimal,
+ * el hash de metadata al que le falta un campo, el JSON de una entidad que
+ * no se puede parsear o al que le falta un campo obligatorio, y el JSON de
+ * cambios de una version que no respeta §14.5 —version que no coincide con
+ * la clave, un array ausente o un id nulo—.
  *
  * <p><b>Por que no es lo mismo que una clave ausente.</b> Una clave que no
  * existe es un estado legitimo del origen —la catedra todavia no publico

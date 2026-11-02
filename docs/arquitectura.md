@@ -167,7 +167,7 @@ flowchart LR
         direction TB
         prepos["CategoryRepository<br/>ProfessionalRepository<br/>WeeklyScheduleRepository<br/>CatalogVersionRepository<br/>SyncRunRepository"]
         prest["CatalogSnapshotPort<br/>TechnicalAuthPort<br/>IntegrationConfigPort"]
-        predis["PublishedCatalogPort"]
+        predis["PublishedCatalogPort<br/>CatalogChangesPort"]
     end
 
     subgraph adapOut["Adaptadores de salida"]
@@ -243,8 +243,17 @@ vigente de cada entidad por id (§14.2 a §14.4). El puerto quedó llamado
 `PublishedCatalogPort` y no `CatalogVersionPort`, como anticipaba el ADR: lo
 que se lee de ahí no es una versión sino el catálogo que la cátedra publicó, y
 `CatalogVersionPort` se confundiría con el repositorio de la versión local, que
-es otra cosa. La lectura de los cambios incrementales de una versión es otro
-puerto y llega con #23.
+es otra cosa.
+
+Los cambios incrementales de una versión (§14.5) son un **puerto aparte**,
+`CatalogChangesPort`, desde #23. No es una separación decorativa: las claves
+del catálogo publicado no tienen TTL y siempre están, mientras que
+`catedra:sync:changes:{version}` vive dentro de la ventana de versiones
+retenida y la misma lectura que hoy funciona en una semana puede no tener la
+clave. Un solo puerto prometería dos garantías distintas y quien lo usara no
+sabría cuál de los dos `Optional.empty()` le tocó. Ese puerto devuelve los IDs
+afectados por colección, no las entidades: el estado vigente de cada ID se lee
+después de los hashes, por `PublishedCatalogPort`.
 
 `shared` aparece dentro del núcleo y sin ninguna flecha, y es correcto que así
 sea: no modela negocio ni tiene puertos. Es la seguridad, el manejo de errores
@@ -272,7 +281,7 @@ legítima viene de la sincronización.
 | --- | --- | --- | --- | --- |
 | 1 | API REST propia (`infrastructure/web`) | `professional`, `schedule` | `SearchProfessionalsUseCase` (in), `GetCurrentAgendaUseCase` (in) | implementado |
 | 2 | Cliente REST de la cátedra (`infrastructure/client`) | `sync`, `integration` | `CatalogSnapshotPort` (out), `TechnicalAuthPort` (out), `IntegrationConfigPort` (out) | implementado |
-| 3 | Redis de la cátedra (`infrastructure/redis`) | `sync` | `PublishedCatalogPort` (out) | implementado (los cambios incrementales, #23) |
+| 3 | Redis de la cátedra (`infrastructure/redis`) | `sync` | `PublishedCatalogPort` (out), `CatalogChangesPort` (out) | implementado |
 | 4 | Kafka (`infrastructure/messaging`) | `sync` | el caso de uso de aplicación de cambios (in) | pendiente, M3 |
 | 5 | Persistencia JPA (`infrastructure/persistence`) | `category`, `professional`, `schedule`, `sync` | `CategoryRepository`, `ProfessionalRepository`, `WeeklyScheduleRepository`, `CatalogVersionRepository`, `SyncRunRepository` (todos out) | implementado |
 

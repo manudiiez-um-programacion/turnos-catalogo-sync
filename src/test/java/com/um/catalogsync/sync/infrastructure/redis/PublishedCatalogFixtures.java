@@ -9,6 +9,10 @@ package com.um.catalogsync.sync.infrastructure.redis;
  * {@code publishedAt} en UTC, las horas con segundos y el field que repite
  * el id.
  *
+ * <p>La lista de cambios es la de la version 7 y nombra al profesional 15,
+ * asi que los ejemplos de §14.4 y §14.5 encajan: la version que cambio es la
+ * que publico a Ana Gomez.
+ *
  * <p>Las entidades son <b>las mismas tres</b> que el ejemplo del snapshot
  * —categoria 1, profesional 15, horario 21— a proposito: los dos caminos del
  * contrato publican la misma forma, y que las pruebas de los dos usen los
@@ -71,6 +75,69 @@ public final class PublishedCatalogFixtures {
                   "updatedAt": "2026-09-10T13:40:00Z"
                 }
                 """;
+    }
+
+    /**
+     * El ejemplo literal de §14.5 para {@code changes:7}.
+     *
+     * <p>Es el caso tipico y el que mas se malinterpreta: dos arrays vacios
+     * y uno con un solo id, que es el del profesional 15 de §14.4. La
+     * version cambio una entidad, no tres.
+     */
+    public static String cambios() {
+        return """
+                {
+                  "version": 7,
+                  "changes": {
+                    "professionalCategories": [],
+                    "professionals": [15],
+                    "weeklySchedules": []
+                  }
+                }
+                """;
+    }
+
+    /**
+     * Una version publicada que no toco nada.
+     *
+     * <p>No es un caso inventado para la prueba: una version con los tres
+     * arrays vacios es valida, se aplica y hace avanzar la version local
+     * (§14.5). Lo que no existe es la clave ausente, y distinguir las dos
+     * cosas es el criterio del issue #23.
+     */
+    public static String cambiosVacios(long version) {
+        return """
+                {
+                  "version": %d,
+                  "changes": {
+                    "professionalCategories": [],
+                    "professionals": [],
+                    "weeklySchedules": []
+                  }
+                }
+                """.formatted(version);
+    }
+
+    /**
+     * Una version que toco las tres colecciones, con un campo que el
+     * contrato todavia no tiene.
+     *
+     * <p>El campo de mas es un requisito explicito: §4 pide tolerar campos
+     * nuevos compatibles, y si no se toleraran, un agregado de la catedra
+     * cortaria la sincronizacion incremental entera.
+     */
+    public static String cambiosDeLasTres(long version) {
+        return """
+                {
+                  "version": %d,
+                  "generatedAt": "2026-09-10T13:44:59Z",
+                  "changes": {
+                    "professionalCategories": [1, 2],
+                    "professionals": [15],
+                    "weeklySchedules": [21, 22, 23]
+                  }
+                }
+                """.formatted(version);
     }
 
     /**

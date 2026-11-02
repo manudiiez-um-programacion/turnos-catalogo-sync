@@ -17,6 +17,12 @@ import com.um.catalogsync.sync.domain.model.CatalogUpdatedOutcome;
  * devuelve {@link CatalogUpdatedOutcome#DUPLICATE} (§15.1, §18.1). Quien
  * implemente esto tiene que garantizarlo en la base y no en memoria, porque
  * la entrega al menos una vez sobrevive a los reinicios y una cache no.
+ *
+ * <p><b>El aviso no trae el destino.</b> Procesarlo implica sincronizar, y
+ * hasta donde hay que llegar lo dice {@code current-version} de Redis, no el
+ * {@code newVersion} del mensaje: el evento notifica y los datos se leen de
+ * Redis o del snapshot (§15.3). Un aviso atrasado respecto de lo que la
+ * catedra ya publico no tiene que frenar la copia local en un numero viejo.
  */
 public interface HandleCatalogUpdatedUseCase {
 
@@ -26,7 +32,10 @@ public interface HandleCatalogUpdatedUseCase {
      * <p><b>Que una excepcion salga de acá significa "no confirmes el
      * offset".</b> El adaptador no la traduce a un resultado: el mensaje
      * tiene que volver a entregarse, y la deduplicacion se encarga de que el
-     * segundo intento no repita nada (§16, §18.1).
+     * segundo intento no repita nada (§16, §18.1). Lo que <b>no</b> sale por
+     * acá es una falla de sincronizacion: el evento ya quedo registrado, asi
+     * que reentregarlo no lo volveria a procesar, y el atraso lo recupera la
+     * comparacion de versiones del chequeo periodico (#27).
      *
      * @param evento la notificacion ya traducida y validada
      * @return si se proceso o si era un duplicado

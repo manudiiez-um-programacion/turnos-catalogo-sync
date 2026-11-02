@@ -1,5 +1,6 @@
 package com.um.catalogsync.sync.domain.ports.out;
 
+import com.um.catalogsync.sync.domain.model.SyncDecisionReason;
 import com.um.catalogsync.sync.domain.model.SyncErrorCode;
 import com.um.catalogsync.sync.domain.model.SyncMode;
 import com.um.catalogsync.sync.domain.model.SyncRun;
@@ -40,12 +41,17 @@ public interface SyncRunRepository {
      * informacion: dice que el servicio se cayo sincronizando.
      *
      * @param mode completa o incremental
-     * @param trigger por que arranco
+     * @param trigger quien la pidio
+     * @param reason por que se eligio este modo. Se guarda junto con la
+     *     corrida porque es la mitad de la decision que {@code mode} no
+     *     alcanza a contar: las tres discontinuidades de §6.2 producen todas
+     *     una corrida completa y significan cosas distintas
      * @param fromVersion version local al empezar, o {@code null} si la base
      *     esta recien inicializada
      * @return la corrida con el id que le asigno la base
      */
-    SyncRun start(SyncMode mode, SyncTrigger trigger, Long fromVersion);
+    SyncRun start(SyncMode mode, SyncTrigger trigger, SyncDecisionReason reason,
+            Long fromVersion);
 
     /**
      * Cierra la corrida como {@code SUCCEEDED} y anota la version a la que

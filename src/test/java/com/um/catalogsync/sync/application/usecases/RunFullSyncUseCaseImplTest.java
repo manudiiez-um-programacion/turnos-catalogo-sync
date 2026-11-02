@@ -17,6 +17,7 @@ import com.um.catalogsync.sync.domain.model.CatalogSnapshot;
 import com.um.catalogsync.sync.domain.model.CatalogVersion;
 import com.um.catalogsync.sync.domain.model.CatalogVersionSource;
 import com.um.catalogsync.sync.domain.model.SyncErrorCode;
+import com.um.catalogsync.sync.domain.model.SyncDecisionReason;
 import com.um.catalogsync.sync.domain.model.SyncMode;
 import com.um.catalogsync.sync.domain.model.SyncRun;
 import com.um.catalogsync.sync.domain.model.SyncStatus;
@@ -82,10 +83,10 @@ class RunFullSyncUseCaseImplTest {
     @Test
     @DisplayName("Registra inicio, trae, aplica y cierra, en ese orden")
     void ordenDeLaOrquestacion() {
-        SyncRun corrida = useCaseFeliz(5L).run(SyncTrigger.STARTUP);
+        SyncRun corrida = useCaseFeliz(5L).run(SyncTrigger.STARTUP, SyncDecisionReason.REQUESTED);
 
         assertThat(pasos).containsExactly(
-                "runs.start(FULL, STARTUP, 5)",
+                "runs.start(FULL, STARTUP, REQUESTED, 5)",
                 "snapshots.fetch",
                 "apply(7)",
                 "runs.succeed(7)");
@@ -106,7 +107,7 @@ class RunFullSyncUseCaseImplTest {
                 () -> version(7L),
                 null);
 
-        assertThatThrownBy(() -> useCase.run(SyncTrigger.STARTUP))
+        assertThatThrownBy(() -> useCase.run(SyncTrigger.STARTUP, SyncDecisionReason.REQUESTED))
                 .isInstanceOf(CatalogSnapshotUnavailableException.class);
 
         // Una catedra inalcanzable es el fallo mas frecuente, porque el
@@ -115,7 +116,7 @@ class RunFullSyncUseCaseImplTest {
         // despues del fetch, el estado (#28) diria que ninguna
         // sincronizacion fallo mientras ninguna consigue arrancar.
         assertThat(pasos).containsExactly(
-                "runs.start(FULL, STARTUP, null)",
+                "runs.start(FULL, STARTUP, REQUESTED, null)",
                 "snapshots.fetch",
                 "runs.fail(SNAPSHOT_UNAVAILABLE)");
     }
@@ -123,12 +124,12 @@ class RunFullSyncUseCaseImplTest {
     @Test
     @DisplayName("Con base vacia, fromVersion es null y no la version 0")
     void baseVaciaRegistraNull() {
-        SyncRun corrida = useCaseFeliz(null).run(SyncTrigger.STARTUP);
+        SyncRun corrida = useCaseFeliz(null).run(SyncTrigger.STARTUP, SyncDecisionReason.REQUESTED);
 
         // null distingue "no teniamos ninguna version" de "veniamos de la 0",
         // que es la distincion que dispara la primera sincronizacion (#14).
         assertThat(corrida.getFromVersion()).isNull();
-        assertThat(pasos).startsWith("runs.start(FULL, STARTUP, null)");
+        assertThat(pasos).startsWith("runs.start(FULL, STARTUP, REQUESTED, null)");
     }
 
     @Test
@@ -144,11 +145,11 @@ class RunFullSyncUseCaseImplTest {
 
         // Se propaga la excepcion original y no una nueva: registrar no es
         // manejar, y quien pidio la sincronizacion tiene que enterarse.
-        assertThatThrownBy(() -> useCase.run(SyncTrigger.DISCONTINUITY))
+        assertThatThrownBy(() -> useCase.run(SyncTrigger.DISCONTINUITY, SyncDecisionReason.REQUESTED))
                 .isSameAs(falla);
 
         assertThat(pasos).containsExactly(
-                "runs.start(FULL, DISCONTINUITY, 5)",
+                "runs.start(FULL, DISCONTINUITY, REQUESTED, 5)",
                 "snapshots.fetch",
                 "apply(7)",
                 "runs.fail(CATALOG_INCONSISTENT)");
@@ -164,7 +165,7 @@ class RunFullSyncUseCaseImplTest {
                 },
                 5L);
 
-        assertThatThrownBy(() -> useCase.run(SyncTrigger.MANUAL)).isInstanceOf(
+        assertThatThrownBy(() -> useCase.run(SyncTrigger.MANUAL, SyncDecisionReason.REQUESTED)).isInstanceOf(
                 IllegalStateException.class);
 
         SyncRun ultima = corridas.ultima();
@@ -183,7 +184,7 @@ class RunFullSyncUseCaseImplTest {
                 },
                 null);
 
-        assertThatThrownBy(() -> useCase.run(SyncTrigger.EVENT)).isInstanceOf(
+        assertThatThrownBy(() -> useCase.run(SyncTrigger.EVENT, SyncDecisionReason.REQUESTED)).isInstanceOf(
                 IllegalStateException.class);
 
         assertThat(corridas.ultimoDetalle).isEqualTo("el motivo exacto");
@@ -226,7 +227,7 @@ class RunFullSyncUseCaseImplTest {
 
         // Decide por el tipo de la excepcion y nunca por su mensaje, por lo
         // mismo que §13 obliga a decidir por code y no por detail.
-        assertThatThrownBy(() -> useCase.run(SyncTrigger.MANUAL)).isSameAs(falla);
+        assertThatThrownBy(() -> useCase.run(SyncTrigger.MANUAL, SyncDecisionReason.REQUESTED)).isSameAs(falla);
         assertThat(corridas.ultimoCodigo).isEqualTo(esperado);
     }
 
@@ -238,8 +239,10 @@ class RunFullSyncUseCaseImplTest {
         private String ultimoDetalle;
 
         @Override
-        public SyncRun start(SyncMode mode, SyncTrigger trigger, Long fromVersion) {
-            pasos.add("runs.start(" + mode + ", " + trigger + ", " + fromVersion + ")");
+        public SyncRun start(SyncMode mode, SyncTrigger trigger,
+                SyncDecisionReason reason, Long fromVersion) {
+            pasos.add("runs.start(" + mode + ", " + trigger + ", " + reason + ", "
+                    + fromVersion + ")");
             SyncRun nueva = SyncRun.builder()
                     .id((long) (filas.size() + 1))
                     .mode(mode)

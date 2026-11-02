@@ -1,5 +1,6 @@
 package com.um.catalogsync.sync.infrastructure.persistence.adapter;
 
+import com.um.catalogsync.sync.domain.model.SyncDecisionReason;
 import com.um.catalogsync.sync.domain.model.SyncErrorCode;
 import com.um.catalogsync.sync.domain.model.SyncMode;
 import com.um.catalogsync.sync.domain.model.SyncRun;
@@ -54,10 +55,12 @@ public class JpaSyncRunRepositoryAdapter implements SyncRunRepository {
 
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public SyncRun start(SyncMode mode, SyncTrigger trigger, Long fromVersion) {
+    public SyncRun start(SyncMode mode, SyncTrigger trigger, SyncDecisionReason reason,
+            Long fromVersion) {
         SyncRunEntity nueva = SyncRunEntity.builder()
                 .mode(mode.name())
                 .triggeredBy(trigger.name())
+                .decisionReason(reason == null ? null : reason.name())
                 .status(SyncStatus.RUNNING.name())
                 .fromVersion(fromVersion)
                 // RUNNING sin finishedAt y sin toVersion: es lo que exige el

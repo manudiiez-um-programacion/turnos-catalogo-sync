@@ -5,12 +5,18 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.um.catalogsync.sync.domain.model.CatalogUpdatedEvent;
 import com.um.catalogsync.sync.domain.model.CatalogUpdatedOutcome;
+import com.um.catalogsync.sync.domain.model.SyncMode;
+import com.um.catalogsync.sync.domain.model.SyncRun;
+import com.um.catalogsync.sync.domain.model.SyncStatus;
+import com.um.catalogsync.sync.domain.model.SyncTrigger;
+import com.um.catalogsync.sync.domain.ports.in.SynchronizeCatalogUseCase;
 import com.um.catalogsync.sync.domain.ports.out.ProcessedEventRepository;
 import com.um.catalogsync.sync.infrastructure.messaging.CatalogUpdatedFixtures;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,17 +24,22 @@ import org.junit.jupiter.api.Test;
 /**
  * La deduplicacion, con un doble del unico puerto que el caso de uso tiene.
  *
- * <p>El doble se comporta como la tabla: la primera vez que ve un
- * {@code eventId} lo registra y devuelve {@code true}, y despues
+ * <p>El doble de la tabla se comporta como la clave primaria: la primera vez
+ * que ve un {@code eventId} lo registra y devuelve {@code true}, y despues
  * {@code false}. Eso alcanza para probar la decision, que es de este caso de
  * uso; que la tabla de verdad se comporte asi lo prueba
  * {@code JpaProcessedEventRepositoryAdapterTest} contra PostgreSQL.
+ *
+ * <p>El doble de la sincronizacion registra las veces que se la invoco. Lo
+ * que importa es <b>cuando</b>: una vez por evento nuevo, ninguna por
+ * duplicado.
  */
 class HandleCatalogUpdatedUseCaseImplTest {
 
     private final EventosEnMemoria eventos = new EventosEnMemoria();
+    private final SincronizacionesRegistradas sincronizacion = new SincronizacionesRegistradas();
     private final HandleCatalogUpdatedUseCaseImpl useCase =
-            new HandleCatalogUpdatedUseCaseImpl(eventos);
+            new HandleCatalogUpdatedUseCaseImpl(eventos, sincronizacion);
 
     @Test
     @DisplayName("Un evento nuevo se procesa y queda registrado")
@@ -67,16 +78,83 @@ class HandleCatalogUpdatedUseCaseImplTest {
     }
 
     @Test
+    @DisplayName("Un evento nuevo dispara la sincronizacion")
+    void elEventoNuevoSincroniza() {
+        useCase.handle(CatalogUpdatedFixtures.evento());
+
+        // El destino no se lo pasa el evento: lo decide la comparacion
+        // contra current-version de Redis (§15.3, el evento notifica).
+        assertThat(sincronizacion.triggers).containsExactly(SyncTrigger.EVENT);
+    }
+
+    @Test
+    @DisplayName("Un duplicado no vuelve a sincronizar")
+    void elDuplicadoNoSincroniza() {
+        CatalogUpdatedEvent evento = CatalogUpdatedFixtures.evento();
+
+        useCase.handle(evento);
+        useCase.handle(evento);
+
+        // Es el criterio de §18.1: el segundo mensaje no produce ningun
+        // efecto funcional. Si volviera a sincronizar, el efecto seria
+        // inocuo —la comparacion de versiones diria que esta al dia— pero
+        // seria trabajo y logs por un mensaje que ya se proceso.
+        assertThat(sincronizacion.triggers).containsExactly(SyncTrigger.EVENT);
+    }
+
+    @Test
+    @DisplayName("Si la sincronizacion falla, el evento queda procesado igual")
+    void laFallaDeSincronizacionNoSePropaga() {
+        // Es la decision explicita del caso de uso: el eventId ya quedo
+        // registrado, asi que reentregar el mensaje no lo volveria a
+        // procesar. Propagar solo lograria que el consumidor no confirme el
+        // offset y reentregue un mensaje que se va a reconocer como
+        // duplicado. El atraso lo recupera el chequeo periodico (§16, #27).
+        HandleCatalogUpdatedUseCaseImpl conCatedraCaida =
+                new HandleCatalogUpdatedUseCaseImpl(eventos, new SincronizacionQueFalla());
+
+        assertThat(conCatedraCaida.handle(CatalogUpdatedFixtures.evento()))
+                .isEqualTo(CatalogUpdatedOutcome.PROCESSED);
+        assertThat(eventos.registrados).containsExactly(CatalogUpdatedFixtures.EVENT_ID);
+    }
+
+    @Test
     @DisplayName("Si el registro falla, la excepcion sale: el offset no se puede confirmar")
     void siElRegistroFallaNoSeTragaLaFalla() {
         // Es la mitad del contrato de §16 que depende de este lado: una
         // falla no puede volver como un resultado, porque el listener
         // confirmaria el offset y la notificacion se perderia.
-        HandleCatalogUpdatedUseCaseImpl conBaseCaida =
-                new HandleCatalogUpdatedUseCaseImpl(new EventosQueFallan());
+        HandleCatalogUpdatedUseCaseImpl conBaseCaida = new HandleCatalogUpdatedUseCaseImpl(
+                new EventosQueFallan(), new SincronizacionesRegistradas());
 
         assertThatThrownBy(() -> conBaseCaida.handle(CatalogUpdatedFixtures.evento()))
                 .isInstanceOf(IllegalStateException.class);
+    }
+
+    private static final class SincronizacionesRegistradas implements SynchronizeCatalogUseCase {
+
+        private final List<SyncTrigger> triggers = new ArrayList<>();
+
+        @Override
+        public Optional<SyncRun> synchronize(SyncTrigger trigger) {
+            triggers.add(trigger);
+            return Optional.of(SyncRun.builder()
+                    .id(1L)
+                    .mode(SyncMode.INCREMENTAL)
+                    .triggeredBy(trigger)
+                    .status(SyncStatus.SUCCEEDED)
+                    .startedAt(Instant.parse("2026-11-02T12:00:00Z"))
+                    .finishedAt(Instant.parse("2026-11-02T12:00:01Z"))
+                    .build());
+        }
+    }
+
+    private static final class SincronizacionQueFalla implements SynchronizeCatalogUseCase {
+
+        @Override
+        public Optional<SyncRun> synchronize(SyncTrigger trigger) {
+            throw new IllegalStateException("la catedra no responde");
+        }
     }
 
     /** Se comporta como la clave primaria de {@code processed_event}. */

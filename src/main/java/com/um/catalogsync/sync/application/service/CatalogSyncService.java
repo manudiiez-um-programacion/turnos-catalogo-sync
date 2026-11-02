@@ -3,11 +3,14 @@ package com.um.catalogsync.sync.application.service;
 import com.um.catalogsync.sync.domain.model.CatalogSnapshot;
 import com.um.catalogsync.sync.domain.model.CatalogVersion;
 import com.um.catalogsync.sync.domain.model.IncrementalSyncResult;
+import com.um.catalogsync.sync.domain.model.SyncDecisionReason;
 import com.um.catalogsync.sync.domain.model.SyncRun;
 import com.um.catalogsync.sync.domain.model.SyncTrigger;
 import com.um.catalogsync.sync.domain.ports.in.ApplyCatalogSnapshotUseCase;
 import com.um.catalogsync.sync.domain.ports.in.ApplyIncrementalChangesUseCase;
 import com.um.catalogsync.sync.domain.ports.in.RunFullSyncUseCase;
+import com.um.catalogsync.sync.domain.ports.in.SynchronizeCatalogUseCase;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -32,15 +35,17 @@ public class CatalogSyncService {
     private final RunFullSyncUseCase runFullSync;
     private final ApplyCatalogSnapshotUseCase applySnapshot;
     private final ApplyIncrementalChangesUseCase applyIncremental;
+    private final SynchronizeCatalogUseCase synchronizeCatalog;
 
     /**
      * Corre una sincronizacion completa de punta a punta.
      *
-     * @param trigger por que se corre, para que quede en el historial
+     * @param trigger quien la pidio, para que quede en el historial
+     * @param reason por que se eligio reconstruir (§6.2)
      * @return la corrida ya cerrada
      */
-    public SyncRun runFullSync(SyncTrigger trigger) {
-        return runFullSync.run(trigger);
+    public SyncRun runFullSync(SyncTrigger trigger, SyncDecisionReason reason) {
+        return runFullSync.run(trigger, reason);
     }
 
     /**
@@ -73,5 +78,23 @@ public class CatalogSyncService {
      */
     public IncrementalSyncResult applyIncrementalUpTo(long targetVersion) {
         return applyIncremental.applyUpTo(targetVersion);
+    }
+
+    /**
+     * Compara el estado local con el del origen y sincroniza como haga
+     * falta.
+     *
+     * <p>Es la operacion que deberia usar quien no quiere elegir: decide
+     * entre incremental y completa con las reglas de §6.2 y registra la
+     * decision con su motivo. Las otras tres de esta fachada existen para
+     * los casos en que quien llama <b>si</b> sabe que corresponde —el
+     * arranque con base vacia, por ejemplo— y no deberian usarse para
+     * saltearse la decision.
+     *
+     * @param trigger quien pidio la sincronizacion
+     * @return la corrida que se hizo, o vacio si no habia nada que hacer
+     */
+    public Optional<SyncRun> synchronize(SyncTrigger trigger) {
+        return synchronizeCatalog.synchronize(trigger);
     }
 }

@@ -11,6 +11,7 @@ import com.um.catalogsync.sync.application.exception.TechnicalIntegrationMissing
 import com.um.catalogsync.sync.application.exception.VersionRegressionException;
 import com.um.catalogsync.sync.domain.model.CatalogSnapshot;
 import com.um.catalogsync.sync.domain.model.CatalogVersion;
+import com.um.catalogsync.sync.domain.model.SyncDecisionReason;
 import com.um.catalogsync.sync.domain.model.SyncErrorCode;
 import com.um.catalogsync.sync.domain.model.SyncMode;
 import com.um.catalogsync.sync.domain.model.SyncRun;
@@ -64,11 +65,11 @@ public class RunFullSyncUseCaseImpl implements RunFullSyncUseCase {
     private final SyncRunRepository runs;
 
     @Override
-    public SyncRun run(SyncTrigger trigger) {
-        log.info("Sincronizacion completa pedida por {}", trigger);
+    public SyncRun run(SyncTrigger trigger, SyncDecisionReason reason) {
+        log.info("Sincronizacion completa pedida por {} ({})", trigger, reason);
 
         Long desde = localVersion.getCurrent().map(CatalogVersion::getVersion).orElse(null);
-        SyncRun corrida = runs.start(SyncMode.FULL, trigger, desde);
+        SyncRun corrida = runs.start(SyncMode.FULL, trigger, reason, desde);
 
         try {
             CatalogSnapshot snapshot = snapshots.fetch();

@@ -3,6 +3,7 @@ package com.um.catalogsync.sync.infrastructure.startup;
 import com.um.catalogsync.sync.application.service.CatalogSyncService;
 import com.um.catalogsync.sync.application.service.CatalogVersionService;
 import com.um.catalogsync.sync.domain.model.CatalogVersion;
+import com.um.catalogsync.sync.domain.model.SyncDecisionReason;
 import com.um.catalogsync.sync.domain.model.SyncRun;
 import com.um.catalogsync.sync.domain.model.SyncTrigger;
 import java.util.Optional;
@@ -143,7 +144,8 @@ public class InitialCatalogSyncRunner implements ApplicationRunner {
 
         log.info("Sin catalogo local: se pide el snapshot completo a la catedra");
         try {
-            SyncRun corrida = sincronizacion.runFullSync(SyncTrigger.STARTUP);
+            SyncRun corrida = sincronizacion.runFullSync(
+                    SyncTrigger.STARTUP, SyncDecisionReason.NO_LOCAL_VERSION);
             log.info(
                     "Catalogo inicial aplicado en la version {} (corrida {})",
                     corrida.getToVersion(),

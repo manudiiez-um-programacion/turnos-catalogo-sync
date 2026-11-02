@@ -13,12 +13,15 @@ import com.um.catalogsync.sync.application.exception.CatalogSnapshotUnavailableE
 import com.um.catalogsync.sync.application.service.CatalogSyncService;
 import com.um.catalogsync.sync.application.service.CatalogVersionService;
 import com.um.catalogsync.sync.application.usecases.RunFullSyncUseCaseImpl;
+import com.um.catalogsync.sync.application.usecases.SynchronizeCatalogUseCaseImpl;
 import com.um.catalogsync.sync.domain.model.CatalogSnapshot;
 import com.um.catalogsync.sync.domain.model.CatalogVersion;
+import com.um.catalogsync.sync.domain.model.PublishedCatalogMetadata;
 import com.um.catalogsync.sync.domain.ports.in.ApplyCatalogSnapshotUseCase;
 import com.um.catalogsync.sync.domain.ports.in.GetLocalCatalogVersionUseCase;
 import com.um.catalogsync.sync.domain.ports.out.CatalogSnapshotPort;
 import com.um.catalogsync.sync.domain.ports.out.CatalogVersionRepository;
+import com.um.catalogsync.sync.domain.ports.out.PublishedCatalogPort;
 import com.um.catalogsync.sync.domain.ports.out.SyncRunRepository;
 import java.util.List;
 import java.util.Map;
@@ -72,24 +75,75 @@ class InitialSyncOnStartupIntegrationTest extends AbstractPostgresIntegrationTes
     @Autowired
     private JdbcTemplate jdbc;
 
-    /** El runner real, con la catedra reemplazada por un puerto a medida. */
+    /**
+     * El runner real, con la catedra reemplazada por un puerto a medida.
+     *
+     * <p>Desde #27 el arranque pasa por la decision de §6.2, asi que el
+     * {@code SynchronizeCatalogUseCaseImpl} tambien es el de verdad. El
+     * Redis de la catedra se reemplaza por un origen que no publica nada:
+     * con la base vacia la decision ni lo mira —el motivo es
+     * {@code NO_LOCAL_VERSION}— y con una version local aplicada, un origen
+     * mudo significa "no hay destino al que llegar", que es exactamente la
+     * situacion de estas pruebas.
+     */
     private InitialCatalogSyncRunner arranqueCon(CatalogSnapshotPort catedra) {
+        var completa = new RunFullSyncUseCaseImpl(catedra, applySnapshot, localVersion, syncRuns);
+        var decision = new SynchronizeCatalogUseCaseImpl(
+                versions,
+                new OrigenSinPublicar(),
+                // El arranque de estas pruebas nunca llega al camino
+                // incremental: o no hay version local, o el origen no
+                // publica nada.
+                version -> {
+                    throw new AssertionError("no corresponde en estas pruebas");
+                },
+                completa,
+                syncRuns);
         return new InitialCatalogSyncRunner(
                 new CatalogVersionService(localVersion),
-                new CatalogSyncService(
-                        new RunFullSyncUseCaseImpl(
-                                catedra, applySnapshot, localVersion, syncRuns),
-                        applySnapshot,
-                        // El arranque con base vacia no puede ir por el
-                        // camino incremental: no hay version local desde la
-                        // que avanzar.
+                new CatalogSyncService(completa, applySnapshot,
                         version -> {
                             throw new AssertionError("no corresponde en el arranque");
                         },
-                        trigger -> {
-                            throw new AssertionError("el arranque no vuelve a decidir");
-                        }),
+                        decision),
                 Runnable::run);
+    }
+
+    /** Un Redis de la catedra que responde y no tiene nada publicado. */
+    private static final class OrigenSinPublicar implements PublishedCatalogPort {
+
+        @Override
+        public java.util.Optional<PublishedCatalogMetadata> metadata() {
+            return java.util.Optional.empty();
+        }
+
+        @Override
+        public java.util.Optional<Long> currentVersion() {
+            return java.util.Optional.empty();
+        }
+
+        @Override
+        public java.util.Optional<Long> oldestAvailableVersion() {
+            return java.util.Optional.empty();
+        }
+
+        @Override
+        public java.util.Optional<com.um.catalogsync.category.domain.model.ProfessionalCategory>
+                findCategory(long id) {
+            return java.util.Optional.empty();
+        }
+
+        @Override
+        public java.util.Optional<com.um.catalogsync.professional.domain.model.Professional>
+                findProfessional(long id) {
+            return java.util.Optional.empty();
+        }
+
+        @Override
+        public java.util.Optional<com.um.catalogsync.schedule.domain.model.WeeklySchedule>
+                findSchedule(long id) {
+            return java.util.Optional.empty();
+        }
     }
 
     private InitialCatalogSyncRunner arranqueQueTrae(CatalogSnapshot snapshot) {

@@ -70,6 +70,28 @@ public final class IntegrationFixtures {
                 .build();
     }
 
+    /**
+     * La misma configuracion habilitada, pero apuntando a un Kafka concreto.
+     *
+     * <p>La usa la prueba del consumidor, por el mismo motivo que
+     * {@link #conRedisEn}: el bootstrap, el topic y el consumer group son
+     * los del contenedor que levanta la prueba, que es exactamente de donde
+     * los toma el servicio en produccion —del objeto {@code integration},
+     * no de la configuracion (§15.2)—.
+     *
+     * <p>El consumer group se pide aparte porque hay pruebas que necesitan
+     * dos: uno que ya confirmo offsets y otro nuevo que arranca desde el
+     * principio del topic.
+     */
+    public static IntegrationConfig conKafkaEn(
+            String bootstrapServers, String topic, String consumerGroupId) {
+        return base(ProvisioningStatus.PROVISIONED)
+                .kafkaBootstrapServers(bootstrapServers)
+                .kafkaCatalogTopic(topic)
+                .kafkaConsumerGroupId(consumerGroupId)
+                .build();
+    }
+
     private static IntegrationConfig.IntegrationConfigBuilder base(ProvisioningStatus estado) {
         return IntegrationConfig.builder()
                 .groupId(GROUP_ID)

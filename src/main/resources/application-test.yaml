@@ -89,6 +89,17 @@ sync:
     retention: 1s
     purge-interval: 1h
 
+  # Reconciliacion periodica: apagada.
+  #
+  # Cada prueba de integracion levanta el contexto completo, y con esto
+  # encendido todas compararian versiones contra un Redis que no existe. La
+  # prueba de la reconciliacion llama al trabajo a mano, que es la unica
+  # forma de controlar cuando corre.
+  reconciliation:
+    enabled: false
+    interval: 1h
+    initial-delay: 1h
+
 # Seguridad: secretos fijos de prueba, no son credenciales de nada.
 #
 # Tienen que estar porque sin ellos el contexto no arranca, que es

@@ -271,7 +271,7 @@ adaptador web sin que ningún slice dependa de ellos.
 | `category` | Categorías profesionales de la copia local. | `GetAllCategoriesUseCase`, `GetCategoryByIdUseCase` |
 | `professional` | Profesionales y la búsqueda con filtros por categoría, nombre, habilitado y disponibilidad. | `SearchProfessionalsUseCase`, `GetAllProfessionalsUseCase`, `GetProfessionalByIdUseCase` |
 | `schedule` | Horarios semanales, el criterio de disponibilidad y la agenda vigente. | `GetCurrentAgendaUseCase`, `GetSchedulesByProfessionalUseCase` |
-| `sync` | El proceso de sincronización: versión aplicada, snapshot, incremental, estado y errores. | `RunFullSyncUseCase`, `ApplyCatalogSnapshotUseCase`, `ApplyIncrementalChangesUseCase`, `ApplyCatalogVersionUseCase`, `GetLocalCatalogVersionUseCase`, `HandleCatalogUpdatedUseCase` |
+| `sync` | El proceso de sincronización: versión aplicada, snapshot, incremental, estado y errores. | `SynchronizeCatalogUseCase`, `RunFullSyncUseCase`, `ApplyCatalogSnapshotUseCase`, `ApplyIncrementalChangesUseCase`, `ApplyCatalogVersionUseCase`, `GetLocalCatalogVersionUseCase`, `HandleCatalogUpdatedUseCase` |
 | `integration` | La cuenta técnica ante la cátedra. Único slice que conoce esas credenciales. | `GetTechnicalTokenUseCase`, `GetIntegrationConfigUseCase`, `RefreshIntegrationConfigUseCase` |
 | `shared` | Transversales sin dueño de negocio: seguridad, `application/problem+json`, OpenAPI. | no tiene: no modela un caso de uso |
 

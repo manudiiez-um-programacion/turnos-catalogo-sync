@@ -79,7 +79,13 @@ class InitialSyncOnStartupIntegrationTest extends AbstractPostgresIntegrationTes
                 new CatalogSyncService(
                         new RunFullSyncUseCaseImpl(
                                 catedra, applySnapshot, localVersion, syncRuns),
-                        applySnapshot),
+                        applySnapshot,
+                        // El arranque con base vacia no puede ir por el
+                        // camino incremental: no hay version local desde la
+                        // que avanzar.
+                        version -> {
+                            throw new AssertionError("no corresponde en el arranque");
+                        }),
                 Runnable::run);
     }
 

@@ -14,6 +14,7 @@ import com.um.catalogsync.sync.domain.model.SyncRun;
 import com.um.catalogsync.sync.domain.model.SyncStatus;
 import com.um.catalogsync.sync.domain.model.SyncTrigger;
 import com.um.catalogsync.sync.domain.ports.in.ApplyCatalogSnapshotUseCase;
+import com.um.catalogsync.sync.domain.ports.in.ApplyIncrementalChangesUseCase;
 import com.um.catalogsync.sync.domain.ports.in.RunFullSyncUseCase;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -64,7 +65,11 @@ class InitialCatalogSyncRunnerTest {
         ApplyCatalogSnapshotUseCase noCorresponde = snapshot -> {
             throw new AssertionError("El arranque no aplica snapshots por su cuenta");
         };
-        return new CatalogSyncService(completa, noCorresponde);
+        ApplyIncrementalChangesUseCase noIncremental = version -> {
+            throw new AssertionError("El arranque con base vacia no va por el camino"
+                    + " incremental: no hay version local desde la que avanzar");
+        };
+        return new CatalogSyncService(completa, noCorresponde, noIncremental);
     }
 
     private static SyncRun corridaExitosa(long hasta) {

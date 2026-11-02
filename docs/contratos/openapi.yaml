@@ -1,0 +1,401 @@
+openapi: 3.1.0
+info:
+  title: Catalogo y sincronizacion
+  description: |-
+    Copia local del catalogo de la catedra: categorias, profesionales y horarios semanales.
+
+    Dos APIs con dos audiencias y dos credenciales distintas. La agenda vigente, bajo /api/internal, la consume el servicio de turnos con el JWT tecnico interno del proyecto y la autoridad SERVICE_TURNOS; es la unica via por la que ese servicio accede a estos datos (§3). La busqueda de profesionales la consume la app KMP con el JWT del usuario final.
+
+    Toda la API es de solo lectura: la copia local se escribe desde la sincronizacion con la catedra, nunca por HTTP.
+
+    Los errores vienen en application/problem+json con un code estable. Los clientes deciden por status y code, nunca por el texto de detail (§13).
+  version: 1.0.0
+servers:
+- url: /
+  description: El origen donde este servicio esta desplegado
+tags:
+- name: Profesionales
+  description: Busqueda y filtros sobre la copia local del catalogo. Requiere el JWT
+    del usuario final.
+- name: Agenda vigente (interno)
+  description: Contrato de solo lectura con el servicio de turnos. Requiere el JWT
+    tecnico interno del proyecto con la autoridad SERVICE_TURNOS.
+paths:
+  /api/professionals:
+    get:
+      tags:
+      - Profesionales
+      summary: Buscar profesionales en la copia local
+      description: |-
+        Filtros opcionales y combinables: categoria exacta, coincidencia parcial de nombre insensible a mayusculas y acentos sobre nombre y apellido, estado habilitado y disponibilidad por dia o franja horaria. Se resuelve solo con datos locales, nunca consultando a la catedra (§6.2).
+
+        La disponibilidad responde 'tiene agenda', NO 'tiene cupo libre': un profesional cumple el filtro si esta habilitado y tiene al menos un horario habilitado en el dia o la franja pedidos. No considera ocupaciones, bloqueos ni reservas, que son del servicio de turnos (§4.2). El rango se cruza por solapamiento.
+
+        El orden es fijo —apellido, nombre, id ascendente— para que el paginado sea estable. Una pagina vacia es una respuesta valida. La respuesta trae la version local de catalogo con la que se resolvio.
+      operationId: buscar
+      parameters:
+      - name: categoryId
+        in: query
+        description: Id de la categoria profesional
+        required: false
+        schema:
+          type: integer
+          format: int64
+          description: Id de la categoria profesional
+          example: 7
+        example: 7
+      - name: name
+        in: query
+        description: "Coincidencia parcial sobre nombre y apellido, insensible a mayusculas\
+          \ y acentos: 'gomez' encuentra a 'Gómez'"
+        required: false
+        schema:
+          type: string
+          description: "Coincidencia parcial sobre nombre y apellido, insensible a\
+            \ mayusculas y acentos: 'gomez' encuentra a 'Gómez'"
+          example: ana gomez
+          maxLength: 120
+          minLength: 0
+        example: ana gomez
+      - name: enabled
+        in: query
+        description: "true solo habilitados, false solo deshabilitados"
+        required: false
+        schema:
+          type: boolean
+          description: "true solo habilitados, false solo deshabilitados"
+          example: true
+        example: true
+      - name: availableOn
+        in: query
+        description: "Dia de la semana en el que el profesional tiene que tener agenda.\
+          \ Responde 'tiene agenda', no 'tiene cupo libre': no considera ocupaciones\
+          \ ni reservas, que son del servicio de turnos."
+        required: false
+        schema:
+          type: string
+          description: "Dia de la semana en el que el profesional tiene que tener\
+            \ agenda. Responde 'tiene agenda', no 'tiene cupo libre': no considera\
+            \ ocupaciones ni reservas, que son del servicio de turnos."
+          enum:
+          - MONDAY
+          - TUESDAY
+          - WEDNESDAY
+          - THURSDAY
+          - FRIDAY
+          - SATURDAY
+          - SUNDAY
+          example: MONDAY
+        example: MONDAY
+      - name: availableFrom
+        in: query
+        description: "Inicio de la franja pedida, HH:mm o HH:mm:ss. Se cruza por solapamiento:\
+          \ un horario de 09:00 a 13:00 cumple un pedido de 10:00 a 11:00. Va siempre\
+          \ junto con availableTo."
+        required: false
+        schema:
+          type: string
+          description: "Inicio de la franja pedida, HH:mm o HH:mm:ss. Se cruza por\
+            \ solapamiento: un horario de 09:00 a 13:00 cumple un pedido de 10:00\
+            \ a 11:00. Va siempre junto con availableTo."
+          example: 09:00
+        example: 09:00
+      - name: availableTo
+        in: query
+        description: "Fin de la franja pedida, posterior a availableFrom"
+        required: false
+        schema:
+          type: string
+          description: "Fin de la franja pedida, posterior a availableFrom"
+          example: 13:00
+        example: 13:00
+      - name: page
+        in: query
+        description: "Pagina, base cero"
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+          description: "Pagina, base cero"
+          example: 0
+          minimum: 0
+        example: 0
+      - name: size
+        in: query
+        description: Elementos por pagina
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 20
+          description: Elementos por pagina
+          example: 20
+          maximum: 100
+          minimum: 1
+        example: 20
+      responses:
+        "200":
+          description: "La pagina de resultados, posiblemente vacia"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfessionalSearchResult"
+        "400":
+          description: "Parametros invalidos. VALIDATION_ERROR: pagina negativa, tamañ\
+            o fuera de rango o un tipo que no corresponde. INVALID_AVAILABILITY_FILTER:\
+            \ dia inexistente, hora mal formada, media franja o rango invertido"
+          content:
+            application/problem+json: {}
+        "401":
+          description: Sin token (AUTH_TOKEN_MISSING) o token invalido (AUTH_TOKEN_INVALID)
+          content:
+            application/problem+json: {}
+        "503":
+          description: "Todavia no hay una version de catalogo aplicada (CATALOG_NOT_SYNCHRONIZED):\
+            \ reintentar"
+          content:
+            application/problem+json: {}
+      security:
+      - jwt-usuario: []
+  /api/internal/professionals/{professionalId}/agenda:
+    get:
+      tags:
+      - Agenda vigente (interno)
+      summary: Agenda vigente de un profesional
+      description: "Reglas de agenda sobre la copia local, nunca consultando a la\
+        \ catedra. No es disponibilidad: no incluye ocupaciones, bloqueos ni reservas,\
+        \ que son del servicio de turnos (§4.2). La respuesta trae la version local\
+        \ aplicada para que el cliente sepa sobre que copia esta trabajando."
+      operationId: agendaVigente
+      parameters:
+      - name: professionalId
+        in: path
+        description: Id del profesional en el catalogo de la catedra
+        required: true
+        schema:
+          type: integer
+          format: int64
+          example: 42
+      responses:
+        "200":
+          description: La agenda vigente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentAgenda"
+        "401":
+          description: Sin token (AUTH_TOKEN_MISSING) o token invalido (AUTH_TOKEN_INVALID)
+          content:
+            application/problem+json: {}
+        "403":
+          description: Token valido sin la autoridad SERVICE_TURNOS (AUTH_FORBIDDEN)
+          content:
+            application/problem+json: {}
+        "404":
+          description: El profesional no esta en la copia local (PROFESSIONAL_NOT_FOUND)
+          content:
+            application/problem+json: {}
+        "409":
+          description: El profesional existe pero esta deshabilitado (PROFESSIONAL_DISABLED)
+          content:
+            application/problem+json: {}
+        "503":
+          description: "Todavia no hay una version de catalogo aplicada (CATALOG_NOT_SYNCHRONIZED):\
+            \ reintentar"
+          content:
+            application/problem+json: {}
+      security:
+      - jwt-interno: []
+components:
+  schemas:
+    AppliedCatalogVersion:
+      type: object
+      description: Version local de catalogo aplicada
+      properties:
+        version:
+          type: integer
+          format: int64
+          example: 128
+        appliedAt:
+          type: string
+          format: date-time
+          example: 2026-10-27T18:30:00Z
+        source:
+          type: string
+          enum:
+          - SNAPSHOT
+          - INCREMENTAL
+          example: SNAPSHOT
+      required:
+      - appliedAt
+      - source
+      - version
+    PageMetadata:
+      type: object
+      description: Metadatos de paginado
+      properties:
+        number:
+          type: integer
+          format: int32
+          example: 0
+        size:
+          type: integer
+          format: int32
+          example: 20
+        totalElements:
+          type: integer
+          format: int64
+          example: 37
+        totalPages:
+          type: integer
+          format: int32
+          example: 2
+      required:
+      - number
+      - size
+      - totalElements
+      - totalPages
+    Professional:
+      type: object
+      description: Profesional de la copia local del catalogo
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 42
+        categoryId:
+          type: integer
+          format: int64
+          example: 7
+        firstName:
+          type: string
+          example: Ana
+        lastName:
+          type: string
+          example: Gomez
+        enabled:
+          type: boolean
+          example: true
+      required:
+      - categoryId
+      - enabled
+      - firstName
+      - id
+      - lastName
+    ProfessionalSearchResult:
+      type: object
+      description: "Pagina de profesionales de la copia local, con la version de catalogo\
+        \ con la que se resolvio. Nunca consulta a la catedra."
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/Professional"
+        page:
+          $ref: "#/components/schemas/PageMetadata"
+        catalogVersion:
+          $ref: "#/components/schemas/AppliedCatalogVersion"
+      required:
+      - catalogVersion
+      - content
+      - page
+    AgendaProfessional:
+      type: object
+      description: Datos vigentes del profesional
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 42
+        categoryId:
+          type: integer
+          format: int64
+          example: 7
+        firstName:
+          type: string
+          example: Ana
+        lastName:
+          type: string
+          example: Gomez
+        enabled:
+          type: boolean
+          description: "Siempre true: un profesional deshabilitado no devuelve agenda,\
+            \ devuelve 409 PROFESSIONAL_DISABLED. Viaja igual para que el contrato\
+            \ sea explicito."
+      required:
+      - categoryId
+      - enabled
+      - firstName
+      - id
+      - lastName
+    AgendaWeeklySchedule:
+      type: object
+      description: Franja semanal de atencion habilitada
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 315
+        dayOfWeek:
+          type: string
+          enum:
+          - MONDAY
+          - TUESDAY
+          - WEDNESDAY
+          - THURSDAY
+          - FRIDAY
+          - SATURDAY
+          - SUNDAY
+          example: MONDAY
+        startTime:
+          type: string
+          example: 09:00
+          pattern: "^\\d{2}:\\d{2}$"
+        endTime:
+          type: string
+          example: 13:00
+          pattern: "^\\d{2}:\\d{2}$"
+        slotDurationMinutes:
+          type: integer
+          format: int32
+          example: 30
+      required:
+      - dayOfWeek
+      - endTime
+      - id
+      - slotDurationMinutes
+      - startTime
+    CurrentAgenda:
+      type: object
+      description: "Agenda vigente de un profesional. Son reglas de agenda, no disponibilidad:\
+        \ no incluye ocupaciones, bloqueos ni reservas, que son del servicio de turnos."
+      properties:
+        professional:
+          $ref: "#/components/schemas/AgendaProfessional"
+        schedules:
+          type: array
+          description: "Puede venir vacia: un profesional habilitado sin horarios"
+          items:
+            $ref: "#/components/schemas/AgendaWeeklySchedule"
+        catalogVersion:
+          $ref: "#/components/schemas/AppliedCatalogVersion"
+      required:
+      - catalogVersion
+      - professional
+      - schedules
+  securitySchemes:
+    jwt-interno:
+      type: http
+      description: "JWT tecnico interno del proyecto, emitido por el servicio de turnos\
+        \ y firmado con JWT_INTERNAL_SECRET. Requiere la autoridad SERVICE_TURNOS.\
+        \ No es el JWT tecnico de la catedra, que no se acepta como credencial de\
+        \ entrada."
+      scheme: bearer
+      bearerFormat: JWT
+    jwt-usuario:
+      type: http
+      description: "JWT del usuario final, emitido por el servicio de turnos al iniciar\
+        \ sesion y firmado con JWT_USER_SECRET."
+      scheme: bearer
+      bearerFormat: JWT

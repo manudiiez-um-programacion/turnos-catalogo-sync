@@ -55,6 +55,49 @@ class JpaWeeklyScheduleRepositoryAdapterTest extends AbstractPostgresIntegration
         insertarProfesional(OTRO_PROFESIONAL, "Juan", "Perez");
     }
 
+    @Test
+    @DisplayName("guarda las horas tal cual, sin convertirlas a ninguna zona")
+    void guardaLasHorasSinDesplazarlas() {
+        weeklyScheduleRepository.upsert(horario(1L, DayOfWeek.MONDAY, "09:00", "13:00"));
+
+        // Se lee con SQL crudo a proposito. El ida y vuelta por JPA no sirve
+        // para esto: hasta el issue #16 la configuracion tenia
+        // hibernate.jdbc.time_zone en UTC, Hibernate lo aplicaba tambien a
+        // las columnas TIME, y un horario de 09:00 se guardaba como 12:00 en
+        // una maquina en -03:00. Al leerlo aplicaba el mismo desplazamiento al
+        // reves, asi que todas las pruebas que comparaban el objeto leido
+        // pasaban sobre una fila que estaba mal.
+        //
+        // Lo que se rompia de verdad: la fila mentia para cualquier consulta
+        // SQL, el valor dependia de la zona de la maquina —la misma base leida
+        // desde otro huso daba otras horas— y las comparaciones del filtro de
+        // disponibilidad (#16) contra literales daban cualquier cosa.
+        //
+        // Las horas de atencion son locales y sin zona (§4): una regla semanal
+        // no ocurre en un instante, asi que no hay nada que convertir.
+        assertThat(jdbc.queryForMap("SELECT start_time::text AS st, end_time::text AS et"
+                        + " FROM weekly_schedule WHERE id = 1"))
+                .containsEntry("st", "09:00:00")
+                .containsEntry("et", "13:00:00");
+    }
+
+    @Test
+    @DisplayName("y los instantes siguen guardandose en UTC, que es lo que TIMESTAMPTZ promete")
+    void losInstantesSiguenEnUtc() {
+        weeklyScheduleRepository.upsert(horario(1L, DayOfWeek.MONDAY, "09:00", "13:00"));
+
+        // La otra mitad de la decision: quitar jdbc.time_zone no afecta a las
+        // columnas de fecha, porque son TIMESTAMPTZ y se mapean a Instant, que
+        // guarda el momento absoluto. Si alguien devolviera la propiedad para
+        // "arreglar" las fechas, la prueba de arriba falla y esta no cambia.
+        assertThat(weeklyScheduleRepository.findById(1L).orElseThrow().getCreatedAt())
+                .isEqualTo(CREADO);
+        assertThat(jdbc.queryForObject(
+                        "SELECT (created_at AT TIME ZONE 'UTC')::text FROM weekly_schedule"
+                                + " WHERE id = 1",
+                        String.class))
+                .startsWith("2026-07-01 12:00:00");
+    }
     private void insertarProfesional(long id, String nombre, String apellido) {
         jdbc.update("INSERT INTO professional (id, category_id, first_name, last_name, "
                 + "search_name, enabled, created_at, updated_at) "

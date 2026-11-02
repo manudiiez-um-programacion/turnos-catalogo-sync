@@ -1,5 +1,6 @@
 package com.um.catalogsync.schedule.domain.ports.out;
 
+import com.um.catalogsync.schedule.domain.model.AvailabilityCriteria;
 import com.um.catalogsync.schedule.domain.model.WeeklySchedule;
 import java.util.Collection;
 import java.util.List;
@@ -48,6 +49,31 @@ public interface WeeklyScheduleRepository {
     List<WeeklySchedule> findByProfessionalId(Long professionalId);
 
     List<WeeklySchedule> findAll();
+
+    /**
+     * Los ids de los profesionales que tienen agenda en el dia o el rango
+     * pedidos (#16).
+     *
+     * <p><b>Devuelve ids y no horarios</b> porque quien pregunta es la
+     * busqueda de profesionales, que necesita saber <i>a quienes</i> incluir
+     * y no cuando atienden. Traer los horarios enteros para despues
+     * descartarlos seria mover filas por nada, y la consulta puede responder
+     * con un {@code DISTINCT} sobre una sola columna.
+     *
+     * <p><b>Solo mira horarios habilitados.</b> Es la mitad del criterio de
+     * disponibilidad que le toca a este slice: un horario deshabilitado es
+     * una baja logica que la copia conserva (§14.4) pero que no es agenda
+     * vigente. La otra mitad —que el profesional tambien este habilitado— la
+     * aplica el slice de profesionales, que es su dueño.
+     *
+     * <p><b>Que esto no es.</b> No es disponibilidad de turnos: responde
+     * "tiene agenda", no "tiene cupo libre". Ver {@link AvailabilityCriteria}
+     * para el criterio completo y por que no puede ser otro.
+     *
+     * @return los ids, sin repetir y sin orden garantizado. Lista vacia si
+     *     nadie tiene agenda ahi, que es una respuesta valida y no un error
+     */
+    List<Long> findProfessionalIdsWithAgendaIn(AvailabilityCriteria criteria);
 
     /**
      * Reemplaza por completo el contenido local de horarios.

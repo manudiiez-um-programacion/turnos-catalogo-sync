@@ -1,6 +1,8 @@
 package com.um.catalogsync.schedule.infrastructure.persistence.adapter;
 
 import com.um.catalogsync.schedule.application.exception.UnknownProfessionalException;
+import com.um.catalogsync.schedule.domain.model.AvailabilityCriteria;
+import com.um.catalogsync.schedule.domain.model.DayOfWeek;
 import com.um.catalogsync.schedule.domain.model.WeeklySchedule;
 import com.um.catalogsync.schedule.domain.ports.out.WeeklyScheduleRepository;
 import com.um.catalogsync.schedule.infrastructure.persistence.entity.WeeklyScheduleEntity;
@@ -80,6 +82,29 @@ public class JpaWeeklyScheduleRepositoryAdapter implements WeeklyScheduleReposit
     @Transactional(readOnly = true)
     public List<WeeklySchedule> findAll() {
         return mapper.toDomain(jpaRepository.findAll());
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Lo unico que agrega sobre la consulta es traducir los dias del enum
+     * de dominio al texto de la columna. La traduccion pasa por
+     * {@link DayOfWeek#name()} y no por {@code toString()}: el nombre de la
+     * constante es el valor del contrato y el que el CHECK de la tabla
+     * acepta, mientras que {@code toString} podria sobrescribirse sin que
+     * nada avisara.
+     *
+     * <p>No tiene ninguna rama. Los casos "sin dia" y "sin franja" ya llegan
+     * resueltos como los siete dias y la jornada completa, porque el criterio
+     * de dominio los expresa asi: ver {@code AvailabilityCriteria.diasPedidos}.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<Long> findProfessionalIdsWithAgendaIn(AvailabilityCriteria criteria) {
+        return jpaRepository.findProfessionalIdsWithEnabledScheduleIn(
+                criteria.diasPedidos().stream().map(DayOfWeek::name).toList(),
+                criteria.franjaDesde(),
+                criteria.franjaHasta());
     }
 
     @Override

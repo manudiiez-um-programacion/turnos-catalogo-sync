@@ -87,16 +87,37 @@ services:
       CATEDRA_API_BASE_URL: ${CATEDRA_API_BASE_URL:-}
       CATEDRA_TECHNICAL_USERNAME: ${CATEDRA_TECHNICAL_USERNAME:-}
       CATEDRA_TECHNICAL_PASSWORD: ${CATEDRA_TECHNICAL_PASSWORD:-}
+
+      # La verificacion de la cuenta tecnica al arrancar viene APAGADA dentro
+      # del contenedor, al contrario que fuera (application.yaml la deja en
+      # true). No es desconfianza del chequeo: desde el contenedor el servidor
+      # de la catedra es inalcanzable por el conflicto de subred con docker0,
+      # asi que verificar aca fallaria siempre y `docker compose up` nunca
+      # llegaria a UP. Ponerla en true en .env cuando el enrutamiento este
+      # resuelto. Ver el README.
+      CATEDRA_API_VERIFY_ON_STARTUP: ${CATEDRA_API_VERIFY_ON_STARTUP:-false}
+
+      # La sincronizacion inicial, en cambio, SI queda encendida dentro del
+      # contenedor, aunque por el mismo conflicto de subred vaya a fallar
+      # mientras el enrutamiento no este resuelto. La diferencia con la
+      # linea de arriba es que esta falla sin tumbar nada: deja un WARN que
+      # nombra el problema, una fila en sync_run y el servicio en UP con
+      # estado SIN_CATALOGO. Apagarla solo esconderia que falta el catalogo.
+      SYNC_STARTUP_ENABLED: ${SYNC_STARTUP_ENABLED:-true}
       REDIS_HOST: ${REDIS_HOST:-}
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_USERNAME: ${REDIS_USERNAME:-}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-}
 
-      # Seguridad de la API propia. Se define en #17 (decisiones D1 y D4).
-      JWT_ISSUER_URI: ${JWT_ISSUER_URI:-}
-      JWT_SECRET: ${JWT_SECRET:-}
-      JWT_JWKS_URI: ${JWT_JWKS_URI:-}
+      # Seguridad de la API propia (ADR 0002, se implementa en #17). Dos
+      # secretos distintos: el del JWT de usuario que emite el servicio de
+      # turnos, y el del JWT tecnico interno con el que turnos llama a la
+      # agenda vigente. Ninguno es el JWT tecnico de catedra.
+      JWT_USER_SECRET: ${JWT_USER_SECRET:-}
+      JWT_USER_ISSUER: ${JWT_USER_ISSUER:-turnos-reservas-service}
+      JWT_INTERNAL_SECRET: ${JWT_INTERNAL_SECRET:-}
+      JWT_INTERNAL_ISSUER: ${JWT_INTERNAL_ISSUER:-turnos-reservas-service}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8080}
     ports:
       - "${SERVER_PORT:-8080}:8080"

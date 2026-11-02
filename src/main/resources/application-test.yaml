@@ -18,6 +18,56 @@ springdoc:
   swagger-ui:
     enabled: false
 
+# Integracion con la catedra: en pruebas no se la toca.
+#
+# La verificacion de arranque queda apagada porque las pruebas de
+# integracion levantan el contexto completo y no tienen la red privada de
+# la catedra; en CI tampoco existe. Con la verificacion encendida cada una
+# fallaria por el entorno y no por el codigo.
+#
+# Los valores igual tienen que estar: las propiedades son obligatorias y
+# sin ellas el contexto no arranca. Son marcadores y no apuntan a nada: las
+# pruebas de los adaptadores levantan WireMock y le pasan su propia URL, y
+# la prueba de punta a punta (#21) reemplaza esta base-url por la del doble
+# con @DynamicPropertySource, asi que ahi el contexto entero habla con
+# WireMock por el mismo adaptador y los mismos timeouts.
+catedra:
+  api:
+    base-url: http://localhost:1
+    username: cuenta-de-prueba
+    password: clave-de-prueba
+    connect-timeout: 1s
+    read-timeout: 2s
+    verify-on-startup: false
+
+# Sincronizacion al arrancar: apagada.
+#
+# Cada prueba de integracion levanta el contexto completo, y con esto
+# encendido todas intentarian traer el snapshot de un servidor que no
+# existe. Ademas le sacaria a la prueba el control de cuando se sincroniza,
+# que es justamente lo que las pruebas de punta a punta (#21) necesitan
+# decidir. Las que prueban el runner lo construyen a mano o encienden la
+# propiedad para su propio contexto.
+sync:
+  startup:
+    enabled: false
+
+# Seguridad: secretos fijos de prueba, no son credenciales de nada.
+#
+# Tienen que estar porque sin ellos el contexto no arranca, que es
+# justamente el comportamiento que se busca en produccion. Son distintos
+# entre si a proposito: las pruebas verifican que un token firmado con uno
+# no sirva en la cadena del otro.
+api:
+  security:
+    user-jwt:
+      secret: secreto-de-prueba-del-usuario-final-0123456789
+      issuer: turnos-reservas-service
+    internal-jwt:
+      secret: secreto-de-prueba-del-servicio-de-turnos-9876543210
+      issuer: turnos-reservas-service
+    cors-allowed-origins: http://localhost:3000
+
 logging:
   level:
     com.um.catalogsync: DEBUG

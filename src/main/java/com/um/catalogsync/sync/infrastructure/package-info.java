@@ -14,5 +14,12 @@
  * mapper y adaptador; {@code web/} controlador, DTOs y mapper. Los slices
  * que hablan con la catedra agregan {@code client/}, {@code cache/} o
  * {@code messaging/} espejando el mismo patron.
+ *
+ * <p>Este slice suma dos paquetes que los de catalogo no tienen, porque
+ * modela procesos y no entidades: {@code startup/}, que decide cuando
+ * correr la primera sincronizacion (#14), y {@code health/}, que publica si
+ * la copia local esta servible. Los dos son adaptadores de entrada —los
+ * dispara el framework, no una peticion— y por eso delegan en las fachadas
+ * de {@code application} sin tocar un puerto de salida.
  */
 package com.um.catalogsync.sync.infrastructure;

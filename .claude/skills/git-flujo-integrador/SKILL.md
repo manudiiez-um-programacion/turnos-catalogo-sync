@@ -36,8 +36,16 @@ docs/m1-18-...  ─┘                                      │
 
 - **Rama de milestone**: agrupa todos los issues de un milestone. Sale de `develop`. Cuando el milestone está completo, se abre **un** PR `milestone/* → develop` para que el profesor lo revise.
 - **Rama de issue**: una por issue. Sale de la rama de su milestone y vuelve a ella por PR.
-- **Promociones** `develop → testing → main`: solo cuando el usuario lo pide.
+- **Promociones** `develop → testing → main`: una vez por milestone, después de que el profesor apruebe el PR `milestone/* → develop`. Siempre con confirmación del usuario antes de abrir los PRs.
 - Nunca se commitea directo en una rama de milestone: solo recibe merges de ramas de issue y actualizaciones desde `develop`.
+
+Rol de cada rama protegida, según lo confirmado por el profesor (sección 9):
+
+| Rama | Rol |
+|---|---|
+| `develop` | Entorno común del equipo de desarrollo. Se integra libremente sin afectar el entorno de uso real. Es donde vive el trabajo del día a día. |
+| `testing` | Pensada para estar desplegada en una infraestructura a la que los usuarios finales tienen acceso para experimentar, sin tocar datos de producción. |
+| `main` | Entorno de uso real. Única rama donde los `Closes #NN` cierran issues. |
 
 ## 3. Convenciones de nombres
 
@@ -309,7 +317,10 @@ Qué aporta este milestone en conjunto.
 
 ### 6.6 Promociones develop → testing → main
 
-Solo cuando el usuario lo pida.
+Una vez por milestone, después de que el profesor apruebe y se mergee el PR
+`milestone/* → develop`. Son dos PRs encadenados y los dos necesitan su
+aprobación. El agente no los abre por iniciativa propia: propone la promoción
+al usuario y espera confirmación.
 
 ```bash
 gh pr create --base testing --head develop --title "release: develop → testing (M1)" --body-file /tmp/pr.md
@@ -356,6 +367,29 @@ gh pr create --base main --head testing --title "release: testing → main (M1)"
 - **Conflictos**: resolverlos en la rama de issue o de milestone, nunca en las protegidas.
 - **Issue que resultó más grande de lo previsto**: proponer partirlo en issues nuevos del mismo milestone antes de seguir.
 
-## 9. Pendiente de confirmar con el profesor
+## 9. Confirmado con el profesor (2026-10-17)
 
-- Para qué usa `testing` y quién abre los PRs de promoción (`develop → testing → main`). Hasta confirmarlo, el agente solo abre promociones si el usuario lo pide.
+Consulta sobre el rol de `testing` y el flujo después de `develop`. Respuesta
+textual del profesor:
+
+> La idea de las 3 ramas era para los que querían "practicar" pasar por las 3,
+> pero no es estrictamente necesario, las pueden manejar como uds quieran
+> siempre que no se pushee directo a esas ramas. La idea de la rama `develop` es
+> que será usada como entorno común para el equipo de desarrollo con libertad de
+> no afectar el entorno de uso real. La rama `testing` tiene como objetivo estar
+> desplegada en una infraestructura a la que los usuarios finales tienen acceso
+> para hacer experimentos y no les afecta los datos de producción.
+
+Lo que se decidió a partir de eso:
+
+- **Se pasa por las tres ramas**, una promoción por milestone: `develop → testing → main`.
+  Elegido sobre ir directo a `main` para que las tres ramas no divergan, para
+  cerrar los issues milestone por milestone y porque es la práctica que el
+  profesor propone.
+- La única regla no negociable sigue siendo **no pushear directo** a `main`,
+  `develop` ni `testing` (el ruleset ya lo impide).
+- `testing` todavía no tiene infraestructura desplegada: por ahora se la mantiene
+  al día como paso de la promoción. Cuando exista un despliegue para la app KMP,
+  es la rama que apunta ahí.
+- El agente nunca abre promociones por iniciativa propia: las propone y espera
+  confirmación del usuario.

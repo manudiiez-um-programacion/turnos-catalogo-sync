@@ -51,6 +51,22 @@ catedra:
     connect-timeout: 1s
     command-timeout: 2s
 
+  # Consumo del topic de catalogo: apagado.
+  #
+  # Cada prueba de integracion levanta el contexto completo, y con esto
+  # encendido todas intentarian engancharse a un broker que no existe. La
+  # prueba del consumidor levanta su propio Kafka y arma el consumidor a
+  # mano, que es lo que le deja controlar cuando se consume.
+  #
+  # Los tiempos son cortos por el mismo motivo que los de Redis: una prueba
+  # que verifica un reintento tiene que terminar rapido.
+  kafka:
+    enabled: false
+    poll-timeout: 500ms
+    startup-retry-interval: 1s
+    retry-interval: 100ms
+    max-retries: 1
+
 # Sincronizacion al arrancar: apagada.
 #
 # Cada prueba de integracion levanta el contexto completo, y con esto
@@ -62,6 +78,16 @@ catedra:
 sync:
   startup:
     enabled: false
+
+  # Retencion de eventos procesados: ventana corta y purga que no corre sola.
+  #
+  # El intervalo es largo a proposito para que ninguna prueba se encuentre
+  # con una purga disparada por el planificador en medio de otra cosa. La
+  # prueba de la purga llama al trabajo a mano, que es la unica forma de
+  # verificar el borde de la ventana sin esperar.
+  processed-events:
+    retention: 1s
+    purge-interval: 1h
 
 # Seguridad: secretos fijos de prueba, no son credenciales de nada.
 #

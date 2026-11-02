@@ -107,6 +107,29 @@ catedra:
     connect-timeout: 5s
     command-timeout: 10s
 
+  # Consumo de CatalogUpdated del topic de catalogo (§15, issue #24).
+  #
+  # Aca tampoco estan el bootstrap, el topic ni el consumer group: llegan en
+  # el objeto integration (§15.2). Lo que se decide aca es cuanto espera el
+  # consumidor y cuantas veces reintenta un mensaje.
+  #
+  # El consumidor arranca DESPUES del arranque del servicio, porque
+  # engancharse al topic necesita la configuracion de integracion y el
+  # arranque no puede depender de la red privada (D6). Si el primer intento
+  # no puede, se reintenta cada startup-retry-interval mientras el servicio
+  # este arriba.
+  #
+  # Los reintentos de un mismo mensaje son acotados (§18.4): al agotarse, el
+  # consumidor se detiene sin confirmar el offset y el reintento de arranque
+  # lo vuelve a levantar, asi que Kafka lo reentrega. Nunca se saltea un
+  # mensaje valido.
+  kafka:
+    enabled: ${KAFKA_CONSUMER_ENABLED:true}
+    poll-timeout: 3s
+    startup-retry-interval: 30s
+    retry-interval: 5s
+    max-retries: 3
+
 # Sincronizacion al arrancar (issue #14).
 #
 # Con la base recien inicializada —sin version de catalogo aplicada— el
@@ -121,6 +144,19 @@ catedra:
 sync:
   startup:
     enabled: ${SYNC_STARTUP_ENABLED:true}
+
+  # Retencion de la memoria de idempotencia (issue #24).
+  #
+  # processed_event suma una fila por notificacion y nada la achica sola. La
+  # ventana solo tiene que ser mas larga que el atraso maximo con el que un
+  # duplicado puede llegar, que lo acota la retencion del topic de Kafka:
+  # treinta dias son varios ordenes de magnitud mas que eso.
+  #
+  # Borrar antes de tiempo seria peor que no borrar: un eventId purgado que
+  # despues se reentrega se procesaria como si fuera nuevo.
+  processed-events:
+    retention: ${PROCESSED_EVENTS_RETENTION:30d}
+    purge-interval: 6h
 
 # Seguridad de la API propia (ADR 0002, issue #17).
 #

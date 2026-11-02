@@ -2,15 +2,17 @@ package com.um.catalogsync.sync.application.service;
 
 import com.um.catalogsync.sync.domain.model.CatalogSnapshot;
 import com.um.catalogsync.sync.domain.model.CatalogVersion;
+import com.um.catalogsync.sync.domain.model.IncrementalSyncResult;
 import com.um.catalogsync.sync.domain.model.SyncRun;
 import com.um.catalogsync.sync.domain.model.SyncTrigger;
 import com.um.catalogsync.sync.domain.ports.in.ApplyCatalogSnapshotUseCase;
+import com.um.catalogsync.sync.domain.ports.in.ApplyIncrementalChangesUseCase;
 import com.um.catalogsync.sync.domain.ports.in.RunFullSyncUseCase;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 /**
- * Fachada de la sincronizacion completa.
+ * Fachada de la sincronizacion: completa e incremental.
  *
  * <p>Es la segunda fachada del slice, y la razon ya esta anotada en
  * {@code CatalogVersionService}: {@code sync} modela varios procesos
@@ -29,6 +31,7 @@ public class CatalogSyncService {
 
     private final RunFullSyncUseCase runFullSync;
     private final ApplyCatalogSnapshotUseCase applySnapshot;
+    private final ApplyIncrementalChangesUseCase applyIncremental;
 
     /**
      * Corre una sincronizacion completa de punta a punta.
@@ -50,5 +53,25 @@ public class CatalogSyncService {
      */
     public CatalogVersion applySnapshot(CatalogSnapshot snapshot) {
         return applySnapshot.apply(snapshot);
+    }
+
+    /**
+     * Pone la copia local al dia aplicando las versiones que faltan, de a
+     * una y en orden.
+     *
+     * <p><b>No decide entre incremental y completa.</b> Devuelve que paso, y
+     * si el camino incremental no alcanzo lo dice en el resultado
+     * ({@code needsFullSync}); elegir la estrategia es de #26 y dispararla,
+     * de #27. Esta fachada expone las dos operaciones para que esa decision
+     * tenga las dos a mano sin conocer ningun puerto de salida.
+     *
+     * <p><b>No registra corrida</b>, igual que {@link #applySnapshot}: quien
+     * la use es responsable de su propio historial.
+     *
+     * @param targetVersion hasta donde llegar, normalmente la
+     *     {@code currentVersion} que publica la catedra
+     */
+    public IncrementalSyncResult applyIncrementalUpTo(long targetVersion) {
+        return applyIncremental.applyUpTo(targetVersion);
     }
 }

@@ -10,6 +10,7 @@ import io.lettuce.core.RedisURI;
 import io.lettuce.core.SocketOptions;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.api.sync.RedisCommands;
+import java.util.function.Function;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.DisposableBean;
@@ -84,6 +85,35 @@ public class CatedraRedisConnection implements DisposableBean {
         }
         abrir(config, huellaActual);
         return conexion.sync();
+    }
+
+    /**
+     * Corre un comando de lectura traduciendo las fallas de Lettuce.
+     *
+     * <p>Vive acá y no en los adaptadores porque es la unica clase del
+     * servicio que conoce Lettuce, y la traduccion tiene que ser una sola:
+     * {@link RedisException} cubre todo —host inalcanzable, timeout de
+     * comando, comando denegado por la ACL, conexion cortada a mitad— y
+     * ninguna de esas clases puede asomar de un puerto de {@code sync}. Con
+     * un adaptador alcanzaba tenerlo privado; con dos leyendo del mismo
+     * namespace, duplicarlo seria duplicar la decision de que cuenta como
+     * "el origen no se pudo verificar" (§18.2).
+     *
+     * <p>Las excepciones propias —la de configuracion sin
+     * {@code redisPassword}, las de los mappers— no descienden de
+     * {@link RedisException}, asi que pasan de largo y no quedan envueltas
+     * como si fueran un problema de conexion.
+     *
+     * @param comando la lectura a ejecutar
+     * @param que la clave o el field que se estaba leyendo, para el mensaje
+     * @throws PublishedCatalogUnavailableException si Redis no respondio
+     */
+    public <T> T leer(Function<RedisCommands<String, String>, T> comando, String que) {
+        try {
+            return comando.apply(comandos());
+        } catch (RedisException falla) {
+            throw new PublishedCatalogUnavailableException("\"" + que + "\"", falla);
+        }
     }
 
     private void abrir(IntegrationConfig config, String huellaNueva) {

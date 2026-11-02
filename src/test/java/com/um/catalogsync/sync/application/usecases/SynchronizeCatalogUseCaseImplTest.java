@@ -28,6 +28,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -229,6 +231,58 @@ class SynchronizeCatalogUseCaseImplTest {
         assertThat(pasos).containsExactly("completa(STARTUP, NO_LOCAL_VERSION)");
     }
 
+    // --- Una sola sincronizacion a la vez ---------------------------------
+
+    @Test
+    @DisplayName("Si ya hay una sincronizacion en curso, la segunda se omite")
+    void unaSolaALaVez() throws Exception {
+        // El caso que el lock evita: una notificacion de Kafka y el chequeo
+        // periodico pidiendo sincronizar al mismo tiempo. Sin el, las dos
+        // leerian la misma version local, las dos decidirian avanzar y la
+        // segunda chocaria en advanceTo —o las dos pedirian el snapshot
+        // completo y la catedra atenderia dos veces el mismo trabajo sobre
+        // un enlace de ~228 ms—.
+        versionLocal.version = 5L;
+        origen.publicar(7L, 4L);
+        CountDownLatch adentro = new CountDownLatch(1);
+        CountDownLatch soltar = new CountDownLatch(1);
+        incremental.esperar = new CountDownLatch[] {adentro, soltar};
+
+        SynchronizeCatalogUseCaseImpl useCase = useCase();
+        Thread primera = new Thread(() -> useCase.synchronize(SyncTrigger.EVENT));
+        primera.start();
+        assertThat(adentro.await(5, TimeUnit.SECONDS)).isTrue();
+
+        // La segunda llega con el lock tomado: se va sin tocar ningun puerto.
+        Optional<SyncRun> segunda = useCase.synchronize(SyncTrigger.RECONCILIATION);
+
+        assertThat(segunda).isEmpty();
+        soltar.countDown();
+        primera.join(5_000);
+        assertThat(incremental.destinos).containsExactly(7L);
+        assertThat(pasos).containsExactly(
+                "corridas.start(INCREMENTAL, EVENT, BEHIND_CURRENT_VERSION, 5)",
+                "corridas.succeed(1, 7)");
+    }
+
+    @Test
+    @DisplayName("El lock se libera aunque la sincronizacion falle")
+    void elLockSeLiberaAnteUnaFalla() {
+        // Si una falla se llevara el lock puesto, el servicio no volveria a
+        // sincronizar nunca mas sin reiniciar. Es el tipo de error que no se
+        // nota hasta que importa.
+        versionLocal.version = 5L;
+        origen.publicar(7L, 4L);
+        incremental.falla = new IllegalStateException("la base no responde");
+        SynchronizeCatalogUseCaseImpl useCase = useCase();
+
+        assertThatThrownBy(() -> useCase.synchronize(SyncTrigger.EVENT))
+                .isInstanceOf(IllegalStateException.class);
+
+        incremental.falla = null;
+        assertThat(useCase.synchronize(SyncTrigger.RECONCILIATION)).isPresent();
+    }
+
     // --- Dobles -----------------------------------------------------------
 
     private static final class VersionLocal implements CatalogVersionRepository {
@@ -304,10 +358,22 @@ class SynchronizeCatalogUseCaseImplTest {
         private IncrementalSyncResult resultado;
         private RuntimeException falla;
 
+        /** Avisa que entro y espera a que la prueba lo suelte. */
+        private CountDownLatch[] esperar;
+
         @Override
         public IncrementalSyncResult applyUpTo(long targetVersion) {
             if (falla != null) {
                 throw falla;
+            }
+            if (esperar != null) {
+                esperar[0].countDown();
+                try {
+                    esperar[1].await(5, TimeUnit.SECONDS);
+                } catch (InterruptedException interrumpido) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(interrumpido);
+                }
             }
             destinos.add(targetVersion);
             return resultado != null ? resultado : new IncrementalSyncResult(

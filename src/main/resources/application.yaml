@@ -158,6 +158,25 @@ sync:
     retention: ${PROCESSED_EVENTS_RETENTION:30d}
     purge-interval: 6h
 
+  # Reconciliacion periodica (issue #27).
+  #
+  # Kafka es una notificacion, no la fuente del catalogo: si un aviso se
+  # pierde, la comparacion de versiones es la que tiene que detectar y
+  # recuperar el atraso (§16). Sin este chequeo, un mensaje que nunca llego
+  # dejaria la copia local atrasada hasta el proximo reinicio.
+  #
+  # El intervalo es el peor caso de cuanto tarda en detectarse ese atraso.
+  # Cuando no hay nada que hacer, el costo es una sola lectura de
+  # catedra:sync:metadata y ningun log por encima de DEBUG.
+  #
+  # El primer chequeo no va en cero porque el arranque ya reconcilia por su
+  # cuenta: los dos a la vez solo lograrian que uno se encuentre el lock
+  # tomado.
+  reconciliation:
+    enabled: ${SYNC_RECONCILIATION_ENABLED:true}
+    interval: ${SYNC_RECONCILIATION_INTERVAL:5m}
+    initial-delay: 1m
+
 # Seguridad de la API propia (ADR 0002, issue #17).
 #
 # Dos identidades con dos secretos distintos: el JWT del usuario final que

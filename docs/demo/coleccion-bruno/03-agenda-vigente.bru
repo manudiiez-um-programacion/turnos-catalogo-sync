@@ -1,0 +1,21 @@
+meta {
+  name: 03 - Agenda vigente de un profesional
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/internal/professionals/{{professionalId}}/agenda
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{jwtInterno}}
+}
+
+docs {
+  La unica via por la que el servicio de turnos accede a estos datos (§4.2).
+  Devuelve reglas de agenda, no disponibilidad. Completar {{professionalId}}
+  con un id real de la copia local (ver la busqueda del paso 04).
+}

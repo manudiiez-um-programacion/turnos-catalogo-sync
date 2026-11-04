@@ -1,0 +1,16 @@
+meta {
+  name: 01 - Salud (publico, sin token)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/actuator/health
+  body: none
+  auth: none
+}
+
+docs {
+  Unico endpoint publico junto con Swagger en perfil local (§9). Esperado:
+  200 con {"status":"UP"}.
+}

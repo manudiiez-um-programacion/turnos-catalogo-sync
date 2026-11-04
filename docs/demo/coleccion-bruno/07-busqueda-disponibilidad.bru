@@ -1,0 +1,27 @@
+meta {
+  name: 07 - Filtro por disponibilidad (dia y franja)
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/api/professionals?availableOn=MONDAY&availableFrom=09:00&availableTo=13:00
+  body: none
+  auth: bearer
+}
+
+params:query {
+  availableOn: MONDAY
+  availableFrom: 09:00
+  availableTo: 13:00
+}
+
+auth:bearer {
+  token: {{jwtUsuario}}
+}
+
+docs {
+  El cuarto filtro obligatorio (§11): habilitado + al menos un horario
+  habilitado que cruza el dia/franja pedidos (README, "La disponibilidad
+  responde 'tiene agenda', no 'tiene cupo libre'").
+}

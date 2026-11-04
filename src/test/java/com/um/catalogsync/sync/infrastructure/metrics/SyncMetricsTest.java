@@ -111,6 +111,19 @@ class SyncMetricsTest {
                 .isEqualTo(1);
     }
 
+    @Test
+    @DisplayName("Un objeto nulo no se cuenta y no rompe")
+    void elNuloNoSeCuenta() {
+        // No hay nada que medir, y no hay nada que valga romper para
+        // avisarlo: estos contadores corren dentro de la transaccion que
+        // registra la corrida.
+        metricas.corridaTerminada(null);
+        metricas.corridaFallida(null);
+
+        assertThat(registro.find("catalog.sync.runs").counters()).isEmpty();
+        assertThat(registro.find("catalog.sync.errors").counters()).isEmpty();
+    }
+
     private double eventos(String outcome) {
         return registro.get("catalog.sync.events").tag("outcome", outcome).counter().count();
     }

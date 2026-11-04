@@ -70,9 +70,14 @@ public class SyncMetrics {
     /**
      * Cuenta una corrida que acaba de cerrarse.
      *
-     * @param run la corrida ya cerrada, con su estado final
+     * @param run la corrida ya cerrada, con su estado final. Un {@code null}
+     *     no se cuenta: ver {@link #etiqueta(Enum)} por el criterio, que es el
+     *     mismo
      */
     public void corridaTerminada(SyncRun run) {
+        if (run == null) {
+            return;
+        }
         Counter.builder(CORRIDAS)
                 .description("Corridas de sincronizacion terminadas")
                 .tag("mode", etiqueta(run.getMode()))
@@ -91,9 +96,13 @@ public class SyncMetrics {
      * suma: uno responde "cuantas sincronizaciones hubo" y el otro "por que
      * fallan".
      *
-     * @param error el error registrado, del que se toma el codigo estable
+     * @param error el error registrado, del que se toma el codigo estable. Un
+     *     {@code null} no se cuenta, por el mismo criterio
      */
     public void corridaFallida(SyncError error) {
+        if (error == null) {
+            return;
+        }
         Counter.builder(ERRORES)
                 .description("Corridas de sincronizacion fallidas, por codigo de error")
                 .tag("code", etiqueta(error.getCode()))
@@ -121,6 +130,10 @@ public class SyncMetrics {
      * que se etiquetan son NOT NULL con CHECK, y el puerto del historial no
      * permite expresar una corrida sin modo, disparador o estado. El nulo solo
      * puede venir de una fila escrita por fuera de la aplicacion.
+     *
+     * <p>Es el mismo criterio por el que los dos metodos que reciben un objeto
+     * vuelven sin contar si llega nulo: no hay nada que medir, y no hay nada
+     * que valga romper para avisarlo.
      *
      * <p><b>Y aun asi no se deja explotar</b>, que es la decision de este
      * metodo. Estos contadores se incrementan <i>dentro</i> de la transaccion

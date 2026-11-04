@@ -22,8 +22,13 @@ import org.springframework.web.client.RestClient;
  * llamada que no responde cuelga el hilo para siempre, y en el arranque eso
  * seria un servicio que nunca termina de arrancar ni dice por que. Los
  * valores concretos viven en {@code application.yaml} para poder ajustarlos
- * sin recompilar; el issue de robustez (#31) va a revisarlos junto con los
- * reintentos.
+ * sin recompilar.
+ *
+ * <p>El issue de robustez (#31) revisó estos valores y los dejó igual: son
+ * los mismos 5 s / 20 s del ADR 0004 §7. Lo que agregó fue un reintento
+ * acotado del pedido del snapshot ante una falla transitoria —ver
+ * {@code CatalogSnapshotRetryProperties}, en el slice {@code sync}—, no un
+ * timeout mas corto ni mas largo.
  */
 @Configuration
 @EnableConfigurationProperties(CatedraApiProperties.class)

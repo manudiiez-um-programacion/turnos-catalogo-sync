@@ -75,6 +75,22 @@ public record CatedraApiProperties(
                                 + " Dejar solo el origen, por ejemplo http://IP:PUERTO");
             }
         }
+        exigirPositivo(connectTimeout, "catedra.api.connect-timeout");
+        exigirPositivo(readTimeout, "catedra.api.read-timeout");
+    }
+
+    /**
+     * Mismo criterio que {@code CatedraRedisProperties} y
+     * {@code CatedraKafkaProperties} (issue #31): se valida al construir
+     * porque en cero o negativo el timeout correspondiente deja de serlo, y
+     * es mejor que el arranque falle nombrando la propiedad que descubrirlo
+     * con una llamada que cuelga para siempre.
+     */
+    private static void exigirPositivo(Duration valor, String propiedad) {
+        if (valor == null || valor.isZero() || valor.isNegative()) {
+            throw new IllegalArgumentException(
+                    propiedad + " tiene que ser una duracion positiva, y llego \"" + valor + "\"");
+        }
     }
 
     /**

@@ -10,10 +10,15 @@ import com.um.catalogsync.sync.application.exception.IncompleteCatalogSnapshotEx
 import com.um.catalogsync.sync.application.exception.TechnicalIntegrationMissingException;
 import com.um.catalogsync.sync.domain.model.CatalogSnapshot;
 import com.um.catalogsync.sync.domain.ports.out.CatalogSnapshotPort;
+import com.um.catalogsync.sync.infrastructure.client.config.CatalogSnapshotRetryProperties;
 import com.um.catalogsync.sync.infrastructure.client.dto.CatalogSnapshotDto;
 import com.um.catalogsync.sync.infrastructure.client.mapper.CatalogSnapshotMapper;
+import com.um.catalogsync.sync.infrastructure.metrics.SnapshotRetryOutcome;
+import com.um.catalogsync.sync.infrastructure.metrics.SyncMetrics;
+import java.time.Duration;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -41,8 +46,29 @@ import org.springframework.web.client.RestClientException;
  * {@code integration.infrastructure}: la regla de que un slice no importa el
  * {@code infrastructure} de otro queda intacta, y los timeouts del snapshot
  * son los mismos que los del resto de las llamadas a la catedra, explicitos
- * y configurables en {@code application.yaml}. El ajuste fino junto con los
- * reintentos es del issue #31.
+ * y configurables en {@code application.yaml}.
+ *
+ * <p><b>Los reintentos (issue #31).</b> Una falla transitoria de un solo
+ * pedido HTTP —la conexion se cae, un 503 pasajero— se reintenta hasta
+ * {@link CatalogSnapshotRetryProperties#maxAttempts()} veces, esperando
+ * {@link CatalogSnapshotRetryProperties#backoff()} entre intento e intento.
+ * Esta propiedad es de {@code sync} y no de {@code integration} —ver su
+ * javadoc— precisamente para no importar el {@code infrastructure} ajeno que
+ * el parrafo anterior evita. Un 401, un 403 o un cuerpo incompleto no se
+ * reintentan: no son transitorios, y reintentarlos solo repetiria el mismo
+ * resultado. Al agotar los intentos se abandona con la misma
+ * {@link CatalogSnapshotUnavailableException} de siempre, que es lo que
+ * {@code RunFullSyncUseCaseImpl} ya traduce a {@code SNAPSHOT_UNAVAILABLE}
+ * (§13): esta clase no inventa un codigo de error nuevo, solo decide cuanto
+ * insiste antes de dejar que el de siempre suba. Cada intento repetido y cada
+ * abandono quedan en el log y en el contador
+ * {@value com.um.catalogsync.sync.infrastructure.metrics.SyncMetrics#SNAPSHOT_RETRIES}.
+ *
+ * <p>Que no se reintenta aca es la sincronizacion completa: segun el ADR 0004
+ * §7, una corrida fallida no se reintenta en el momento, la recupera la
+ * reconciliacion periodica (#27) o la proxima notificacion. Este reintento es
+ * mas bajo en la pila y mas acotado: amortigua un pedido HTTP, no decide si
+ * vale la pena volver a sincronizar.
  *
  * <p><b>Por que {@code exchange} y no {@code retrieve().onStatus(...)}</b>,
  * que es lo que hacen los dos adaptadores de {@code integration}. Acá hay
@@ -60,6 +86,7 @@ import org.springframework.web.client.RestClientException;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@EnableConfigurationProperties(CatalogSnapshotRetryProperties.class)
 public class RestCatalogSnapshotAdapter implements CatalogSnapshotPort {
 
     /** La ruta ya incluye {@code /api}: la URL base es solo el origen. */
@@ -74,12 +101,14 @@ public class RestCatalogSnapshotAdapter implements CatalogSnapshotPort {
 
     private final GetTechnicalTokenUseCase getTechnicalToken;
     private final CatalogSnapshotMapper mapper;
+    private final CatalogSnapshotRetryProperties retryProperties;
+    private final SyncMetrics metrics;
 
     @Override
     public CatalogSnapshot fetch() {
         log.debug("Pidiendo el snapshot completo del catalogo a la catedra");
 
-        CatalogSnapshotDto respuesta = pedirSnapshot(getTechnicalToken.get());
+        CatalogSnapshotDto respuesta = pedirSnapshotConReintentos(getTechnicalToken.get());
 
         CatalogSnapshot snapshot = mapper.toDomain(respuesta);
         if (snapshot == null) {
@@ -93,6 +122,54 @@ public class RestCatalogSnapshotAdapter implements CatalogSnapshotPort {
                 snapshot.getProfessionals().size(),
                 snapshot.getSchedules().size());
         return snapshot;
+    }
+
+    /**
+     * Reintenta {@link #pedirSnapshot} ante una falla transitoria, hasta
+     * {@link CatalogSnapshotRetryProperties#maxAttempts()} veces en total
+     * (issue #31).
+     *
+     * <p>Solo se reintenta {@link CatalogSnapshotUnavailableException}: es la
+     * que {@link #traducir} reserva para "vale la pena intentar mas tarde"
+     * —5xx, una conexion que no responde— y la unica de las cuatro que
+     * {@link #traducir} puede producir donde reintentar con el mismo token
+     * tiene sentido. Un 401 o un 403 no son transitorios: repetir la misma
+     * llamada repetiria el mismo resultado, y reautenticarse es decision de
+     * otra capa (#14), no de este adaptador.
+     */
+    private CatalogSnapshotDto pedirSnapshotConReintentos(Secret technicalToken) {
+        int intento = 1;
+        while (true) {
+            try {
+                return pedirSnapshot(technicalToken);
+            } catch (CatalogSnapshotUnavailableException falla) {
+                if (intento >= retryProperties.maxAttempts()) {
+                    log.error("Se agotaron los {} intentos de pedir el snapshot a la catedra",
+                            retryProperties.maxAttempts(), falla);
+                    metrics.snapshotReintento(SnapshotRetryOutcome.EXHAUSTED);
+                    throw falla;
+                }
+                log.warn("Intento {}/{} de pedir el snapshot fallo, reintentando en {}: {}",
+                        intento, retryProperties.maxAttempts(), retryProperties.backoff(),
+                        falla.getMessage());
+                metrics.snapshotReintento(SnapshotRetryOutcome.RETRIED);
+                esperar(retryProperties.backoff());
+                intento++;
+            }
+        }
+    }
+
+    private static void esperar(Duration backoff) {
+        if (backoff.isZero()) {
+            return;
+        }
+        try {
+            Thread.sleep(backoff.toMillis());
+        } catch (InterruptedException interrumpida) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(
+                    "Interrumpido esperando para reintentar el snapshot", interrumpida);
+        }
     }
 
     /**

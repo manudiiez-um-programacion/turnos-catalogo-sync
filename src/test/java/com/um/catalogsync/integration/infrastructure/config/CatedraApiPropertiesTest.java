@@ -7,6 +7,7 @@ import java.time.Duration;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class CatedraApiPropertiesTest {
@@ -93,5 +94,33 @@ class CatedraApiPropertiesTest {
 
         assertThat(sinClave.isConfigured()).isFalse();
         assertThat(sinClave.missingVariables()).isEqualTo("CATEDRA_TECHNICAL_PASSWORD");
+    }
+
+    @ParameterizedTest
+    @DisplayName("Rechaza un connect-timeout en cero, negativo o nulo")
+    @NullSource
+    @ValueSource(strings = {"PT0S", "-PT1S"})
+    void rechazaConnectTimeoutInvalido(String texto) {
+        Duration connectTimeout = texto == null ? null : Duration.parse(texto);
+
+        assertThatThrownBy(() -> new CatedraApiProperties(
+                "http://10.147.17.1:8080", "juan.perez", "clave-de-prueba",
+                connectTimeout, Duration.ofSeconds(20), true))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("catedra.api.connect-timeout");
+    }
+
+    @ParameterizedTest
+    @DisplayName("Rechaza un read-timeout en cero, negativo o nulo")
+    @NullSource
+    @ValueSource(strings = {"PT0S", "-PT1S"})
+    void rechazaReadTimeoutInvalido(String texto) {
+        Duration readTimeout = texto == null ? null : Duration.parse(texto);
+
+        assertThatThrownBy(() -> new CatedraApiProperties(
+                "http://10.147.17.1:8080", "juan.perez", "clave-de-prueba",
+                Duration.ofSeconds(5), readTimeout, true))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("catedra.api.read-timeout");
     }
 }

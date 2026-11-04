@@ -54,8 +54,12 @@ server:
 management:
   endpoints:
     web:
+      # metrics suma los contadores de sincronizacion (#28): corridas por modo
+      # y resultado, errores por codigo y notificaciones por resultado, donde
+      # outcome=DUPLICATE es la evidencia de idempotencia de §11. Queda detras
+      # de token, como /actuator/info: lo unico publico es health.
       exposure:
-        include: health,info
+        include: health,info,metrics
   endpoint:
     health:
       show-details: never
@@ -92,6 +96,44 @@ catedra:
     # lado seguro de olvidarse de configurarlo es que la verificacion corra.
     verify-on-startup: true
 
+  # Lectura del catalogo publicado en Redis (§14, issue #22).
+  #
+  # Aca solo van los timeouts: el host, el puerto, el usuario y la clave de
+  # Redis NO son configuracion de este servicio, llegan en el objeto
+  # integration que entrega la catedra (§14.1) y pueden cambiar sin que se
+  # reinicie nada.
+  #
+  # Holgados por el mismo motivo que los de la API: el servidor se alcanza
+  # por ZeroTier y el enlace tiene ~228 ms de ida y vuelta medidos (D6). Las
+  # dos son obligatorias y tienen que ser positivas: en cero o negativas
+  # Lettuce esperaria sin limite, que es justo lo que evitan.
+  redis:
+    connect-timeout: 5s
+    command-timeout: 10s
+
+  # Consumo de CatalogUpdated del topic de catalogo (§15, issue #24).
+  #
+  # Aca tampoco estan el bootstrap, el topic ni el consumer group: llegan en
+  # el objeto integration (§15.2). Lo que se decide aca es cuanto espera el
+  # consumidor y cuantas veces reintenta un mensaje.
+  #
+  # El consumidor arranca DESPUES del arranque del servicio, porque
+  # engancharse al topic necesita la configuracion de integracion y el
+  # arranque no puede depender de la red privada (D6). Si el primer intento
+  # no puede, se reintenta cada startup-retry-interval mientras el servicio
+  # este arriba.
+  #
+  # Los reintentos de un mismo mensaje son acotados (§18.4): al agotarse, el
+  # consumidor se detiene sin confirmar el offset y el reintento de arranque
+  # lo vuelve a levantar, asi que Kafka lo reentrega. Nunca se saltea un
+  # mensaje valido.
+  kafka:
+    enabled: ${KAFKA_CONSUMER_ENABLED:true}
+    poll-timeout: 3s
+    startup-retry-interval: 30s
+    retry-interval: 5s
+    max-retries: 3
+
 # Sincronizacion al arrancar (issue #14).
 #
 # Con la base recien inicializada —sin version de catalogo aplicada— el
@@ -106,6 +148,55 @@ catedra:
 sync:
   startup:
     enabled: ${SYNC_STARTUP_ENABLED:true}
+
+  # Retencion de la memoria de idempotencia (issue #24).
+  #
+  # processed_event suma una fila por notificacion y nada la achica sola. La
+  # ventana solo tiene que ser mas larga que el atraso maximo con el que un
+  # duplicado puede llegar, que lo acota la retencion del topic de Kafka:
+  # treinta dias son varios ordenes de magnitud mas que eso.
+  #
+  # Borrar antes de tiempo seria peor que no borrar: un eventId purgado que
+  # despues se reentrega se procesaria como si fuera nuevo.
+  processed-events:
+    retention: ${PROCESSED_EVENTS_RETENTION:30d}
+    purge-interval: 6h
+
+  # Reconciliacion periodica (issue #27).
+  #
+  # Kafka es una notificacion, no la fuente del catalogo: si un aviso se
+  # pierde, la comparacion de versiones es la que tiene que detectar y
+  # recuperar el atraso (§16). Sin este chequeo, un mensaje que nunca llego
+  # dejaria la copia local atrasada hasta el proximo reinicio.
+  #
+  # El intervalo es el peor caso de cuanto tarda en detectarse ese atraso.
+  # Cuando no hay nada que hacer, el costo es una sola lectura de
+  # catedra:sync:metadata y ningun log por encima de DEBUG.
+  #
+  # El primer chequeo no va en cero porque el arranque ya reconcilia por su
+  # cuenta: los dos a la vez solo lograrian que uno se encuentre el lock
+  # tomado.
+  reconciliation:
+    enabled: ${SYNC_RECONCILIATION_ENABLED:true}
+    interval: ${SYNC_RECONCILIATION_INTERVAL:5m}
+    initial-delay: 1m
+
+  # Retencion del historial de sincronizacion (issue #28).
+  #
+  # sync_run suma una fila por intento y nada la achica sola: con el chequeo
+  # periodico corriendo cada pocos minutos, la tabla crece aunque nunca pase
+  # nada. Los errores se van con su corrida (ON DELETE CASCADE).
+  #
+  # A diferencia de la ventana de processed-events, esta no es una restriccion
+  # de correctitud: borrar de mas no rompe nada, solo deja menos para
+  # diagnosticar. Noventa dias cubren la entrega y un cuatrimestre entero.
+  #
+  # La corrida mas reciente nunca se borra, aunque sea mas vieja que la
+  # ventana: un servicio quieto informaria "ninguna sincronizacion" en lugar
+  # de "la ultima fue hace mucho", que es el dato que se esta buscando.
+  history:
+    retention: ${SYNC_HISTORY_RETENTION:90d}
+    purge-interval: 6h
 
 # Seguridad de la API propia (ADR 0002, issue #17).
 #

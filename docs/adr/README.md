@@ -14,12 +14,17 @@ reemplace y se marca el anterior como `superseded por NNNN`.
 | --- | --- | --- | --- | --- |
 | [0001](0001-arquitectura-hexagonal.md) | Arquitectura hexagonal con slices verticales | aceptada | 2026-10-14 | #2 |
 | [0002](0002-identidad-y-autenticacion-entre-servicios.md) | Identidad del usuario final y autenticación entre servicios | aceptada | 2026-10-26 | #59 |
+| [0003](0003-instancia-postgres-compartida.md) | Instancia de PostgreSQL compartida con el servicio de turnos | aceptada | 2026-11-01 | #72 |
+| [0004](0004-sincronizacion-e-idempotencia.md) | Estrategia de sincronización e idempotencia | aceptada | 2026-11-04 | #29 |
 
 Estados posibles: `propuesta`, `aceptada`, `rechazada`, `superseded por NNNN`.
 
 ## Convenciones
 
 - Nombre de archivo: `NNNN-slug-corto.md`, numeración correlativa desde `0001`.
+  El número lo decide el orden en que se escriben, no el issue que los pide:
+  el issue #29 nombraba `0002-sincronizacion-e-idempotencia.md` y quedó
+  `0004`, porque `0002` y `0003` ya estaban tomados.
 - Un ADR por decisión. Si un issue cierra dos decisiones chicas y relacionadas
   (por ejemplo arquitectura y motor de base de datos), pueden ir juntas, pero
   cada una con su sección.
@@ -68,4 +73,5 @@ Secciones del enunciado, de la referencia de integración, issues y skills.
 
 ## ADRs previstos
 
-- Sincronización e idempotencia (issue #29)
+Ninguno pendiente. Las decisiones abiertas del proyecto están listadas en
+`CLAUDE.md`; cuando se cierra una, se escribe su ADR y se agrega al índice.

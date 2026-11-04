@@ -60,6 +60,14 @@ public class SyncRunEntity {
     @Column(name = "status", nullable = false, length = 16)
     private String status;
 
+    /**
+     * Nullable porque las corridas anteriores a la migracion V3 no lo
+     * tienen: se hicieron antes de que la decision se registrara, y
+     * ponerles un motivo inventado seria peor que dejarlas sin uno.
+     */
+    @Column(name = "decision_reason", length = 32)
+    private String decisionReason;
+
     @Column(name = "from_version")
     private Long fromVersion;
 

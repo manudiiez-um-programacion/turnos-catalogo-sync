@@ -427,6 +427,26 @@ El análisis **lo dispara GitHub Actions**, no el análisis automático de
 SonarCloud: los dos a la vez se pisan, así que el automático queda
 desactivado en la web.
 
+**Corre solo en los pull requests y en `main`.** Un push a una rama de issue
+compila y prueba, pero no analiza: la organización está en el plan gratuito,
+que no analiza ramas distintas de `main`, y un análisis de rama igual publica
+su check y ese check queda rojo **siempre**. Con dos checks de Sonar por PR y
+uno permanentemente en rojo, un gate que falla de verdad pasa desapercibido —
+que es exactamente lo que ocurrió en el PR #80 (issue #84)—. Con el filtro hay
+un solo check por PR, y un rojo ahí vuelve a significar que algo está mal.
+
+Para ver el gate de un PR sin entrar a la web:
+
+```bash
+curl -s "https://sonarcloud.io/api/qualitygates/project_status?projectKey=manudiiez-um-programacion_turnos-catalogo-sync&pullRequest=NN"
+# y los problemas nuevos, cuando falla:
+curl -s "https://sonarcloud.io/api/issues/search?componentKeys=manudiiez-um-programacion_turnos-catalogo-sync&pullRequest=NN&types=BUG&ps=20&additionalFields=_all"
+```
+
+El JSON de los problemas trae `flows`, que muestra el camino completo del
+análisis de flujo de datos. Vale leerlo antes de "arreglar" la línea marcada:
+suele apuntar al final de una cadena que empieza en otro archivo.
+
 Qué mide:
 
 | | |

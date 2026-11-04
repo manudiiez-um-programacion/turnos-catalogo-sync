@@ -927,9 +927,12 @@ El enlace es relayado, no directo, y se nota:
 
 Consecuencias: los defaults de Spring no sirven tal cual, cualquier
 integración que haga una request por entidad es inviable, y el backoff tiene
-que partir de una base mayor a la de una LAN. El ajuste de timeouts y
-reintentos es el issue
-[#31](https://github.com/manudiiez-um-programacion/turnos-catalogo-sync/issues/31).
+que partir de una base mayor a la de una LAN. Los timeouts y los reintentos
+(issue [#31](https://github.com/manudiiez-um-programacion/turnos-catalogo-sync/issues/31))
+quedaron en `catedra.api`, `catedra.redis` y `catedra.kafka` del
+`application.yaml` — ver el ADR
+[0004](docs/adr/0004-sincronizacion-e-idempotencia.md#7-timeouts-y-reintentos)
+por los valores y por qué cada uno se reintenta o no.
 
 ## Estructura
 

@@ -14,6 +14,7 @@ import static org.assertj.core.groups.Tuple.tuple;
 import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
 import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
+import com.github.tomakehurst.wiremock.stubbing.Scenario;
 import com.um.catalogsync.integration.IntegrationFixtures;
 import com.um.catalogsync.integration.infrastructure.client.CatedraClientFixtures;
 import com.um.catalogsync.schedule.domain.model.DayOfWeek;
@@ -25,7 +26,11 @@ import com.um.catalogsync.sync.application.exception.IncompleteCatalogSnapshotEx
 import com.um.catalogsync.sync.application.exception.TechnicalIntegrationMissingException;
 import com.um.catalogsync.sync.domain.model.CatalogSnapshot;
 import com.um.catalogsync.sync.infrastructure.client.SnapshotFixtures;
+import com.um.catalogsync.sync.infrastructure.client.config.CatalogSnapshotRetryProperties;
 import com.um.catalogsync.sync.infrastructure.client.mapper.CatalogSnapshotMapper;
+import com.um.catalogsync.sync.infrastructure.metrics.SnapshotRetryOutcome;
+import com.um.catalogsync.sync.infrastructure.metrics.SyncMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.time.Duration;
@@ -58,18 +63,38 @@ class RestCatalogSnapshotAdapterTest {
 
     private static final String RUTA = "/api/synchronization/snapshot";
 
-    private static RestCatalogSnapshotAdapter adaptador() {
+    private final SimpleMeterRegistry registro = new SimpleMeterRegistry();
+    private final SyncMetrics metrics = new SyncMetrics(registro);
+
+    /**
+     * Sin reintentos: {@code maxAttempts=1} deja el comportamiento igual al
+     * de antes de #31, que es lo que necesitan todas las pruebas que no son
+     * sobre el reintento en si.
+     */
+    private RestCatalogSnapshotAdapter adaptador() {
         return adaptador(Duration.ofSeconds(2));
     }
 
-    private static RestCatalogSnapshotAdapter adaptador(Duration readTimeout) {
+    private RestCatalogSnapshotAdapter adaptador(Duration readTimeout) {
+        return adaptador(readTimeout, new CatalogSnapshotRetryProperties(1, Duration.ZERO));
+    }
+
+    private RestCatalogSnapshotAdapter adaptador(int maxAttempts, Duration backoff) {
+        return adaptador(
+                Duration.ofSeconds(2), new CatalogSnapshotRetryProperties(maxAttempts, backoff));
+    }
+
+    private RestCatalogSnapshotAdapter adaptador(
+            Duration readTimeout, CatalogSnapshotRetryProperties reintentos) {
         return new RestCatalogSnapshotAdapter(
                 CatedraClientFixtures.restClient(
                         CatedraClientFixtures.propiedades(CATEDRA.baseUrl(), readTimeout)),
                 // El puerto de entrada del slice integration, resuelto con un
                 // doble: el adaptador no sabe de donde sale el token.
                 () -> Secret.of(IntegrationFixtures.TOKEN_FALSO),
-                new CatalogSnapshotMapper());
+                new CatalogSnapshotMapper(),
+                reintentos,
+                metrics);
     }
 
     private static void responde(ResponseDefinitionBuilder respuesta) {
@@ -307,6 +332,82 @@ class RestCatalogSnapshotAdapterTest {
         Throwable falla = catchThrowable(() -> adaptador().fetch());
 
         assertThat(trazaDe(falla)).doesNotContain(IntegrationFixtures.TOKEN_FALSO);
+    }
+
+    // --- Reintentos ante una falla transitoria (issue #31) ----------------
+
+    @Test
+    @DisplayName("Una falla transitoria se reintenta y el segundo intento trae el snapshot")
+    void unaFallaTransitoriaSeReintenta() {
+        // Un 503 y no un Fault de conexion: un corte de conexion antes de
+        // enviar ningun byte es algo que el propio HttpClient del JDK puede
+        // reintentar solo, por dentro y sin que nada se entere (verificado
+        // con este mismo escenario). Un 503 es una respuesta HTTP completa,
+        // asi que llega entero al adaptador y es su codigo el que decide
+        // reintentar, no el del JDK.
+        CATEDRA.stubFor(get(urlEqualTo(RUTA)).inScenario("snapshot-retry")
+                .whenScenarioStateIs(Scenario.STARTED)
+                .willReturn(problema(503, null, "Redis unavailable"))
+                .willSetStateTo("segundo-intento"));
+        CATEDRA.stubFor(get(urlEqualTo(RUTA)).inScenario("snapshot-retry")
+                .whenScenarioStateIs("segundo-intento")
+                .willReturn(okJson(SnapshotFixtures.snapshotDeLaReferencia())));
+
+        CatalogSnapshot snapshot = adaptador(2, Duration.ofMillis(10)).fetch();
+
+        assertThat(snapshot.getSnapshotVersion()).isEqualTo(SnapshotFixtures.VERSION);
+        CATEDRA.verify(2, getRequestedFor(urlEqualTo(RUTA)));
+        assertThat(registro.get("catalog.sync.snapshot.retries")
+                        .tag("outcome", SnapshotRetryOutcome.RETRIED.name())
+                        .counter()
+                        .count())
+                .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("Al agotar los intentos, se abandona con la excepcion de siempre")
+    void alAgotarLosIntentosSeAbandona() {
+        responde(problema(503, null, "Redis unavailable"));
+
+        assertThatThrownBy(() -> adaptador(3, Duration.ofMillis(10)).fetch())
+                .isInstanceOf(CatalogSnapshotUnavailableException.class)
+                .hasMessageContaining("503");
+
+        // Las tres llamadas se hicieron de verdad: no se abandono antes de
+        // tiempo ni se siguio intentando de mas.
+        CATEDRA.verify(3, getRequestedFor(urlEqualTo(RUTA)));
+        assertThat(registro.get("catalog.sync.snapshot.retries")
+                        .tag("outcome", SnapshotRetryOutcome.RETRIED.name())
+                        .counter()
+                        .count())
+                .isEqualTo(2);
+        assertThat(registro.get("catalog.sync.snapshot.retries")
+                        .tag("outcome", SnapshotRetryOutcome.EXHAUSTED.name())
+                        .counter()
+                        .count())
+                .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("Un 401 no se reintenta: una sola llamada y la excepcion de siempre")
+    void un401NoSeReintenta() {
+        responde(problema(401, null, "Full authentication is required"));
+
+        assertThatThrownBy(() -> adaptador(3, Duration.ofMillis(10)).fetch())
+                .isInstanceOf(CatalogSnapshotUnauthorizedException.class);
+
+        CATEDRA.verify(1, getRequestedFor(urlEqualTo(RUTA)));
+    }
+
+    @Test
+    @DisplayName("Un 403 no se reintenta: una sola llamada y la excepcion de siempre")
+    void un403NoSeReintenta() {
+        responde(problema(403, "SOME_FUTURE_CODE", "Access denied"));
+
+        assertThatThrownBy(() -> adaptador(3, Duration.ofMillis(10)).fetch())
+                .isInstanceOf(CatalogSnapshotForbiddenException.class);
+
+        CATEDRA.verify(1, getRequestedFor(urlEqualTo(RUTA)));
     }
 
     private static String trazaDe(Throwable falla) {

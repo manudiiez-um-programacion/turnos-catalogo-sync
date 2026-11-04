@@ -29,6 +29,22 @@ Disponibilidad de turnos, holds, reservas, los eventos Kafka de turnos
 (`alumnos.turnos.acciones.*`, `catedra.turnos.telefono.*`) y la aplicación KMP.
 Eso vive en los otros dos repositorios del proyecto.
 
+## Documentación obligatoria (§12)
+
+Ocho viñetas, ocho punteros. Cada uno apunta a donde esa exigencia está
+cubierta para este servicio; nada de esto se repite dos veces.
+
+| Viñeta de §12 | Dónde está |
+| --- | --- |
+| Requisitos, configuración y pasos reproducibles | Este README: [Requisitos](#requisitos) y [Puesta en marcha, paso a paso](#puesta-en-marcha-paso-a-paso) |
+| Diagrama de arquitectura (app, los dos servicios, bases, integraciones) | [`docs/arquitectura.md`](docs/arquitectura.md) |
+| Contratos entre los dos servicios (operaciones, DTO, autenticación, errores) | [`docs/contratos/catalogo-turnos.md`](docs/contratos/catalogo-turnos.md) |
+| Modelo de datos de este servicio y delimitación de su propiedad | [`docs/modelo-datos.md`](docs/modelo-datos.md) |
+| Estrategia de sincronización completa e incremental | [`docs/sincronizacion.md`](docs/sincronizacion.md) |
+| Procesamiento idempotente y recuperación ante duplicados, pérdidas y desorden | [`docs/recuperacion.md`](docs/recuperacion.md) |
+| Decisiones de seguridad, autenticación y autorización | [`docs/seguridad.md`](docs/seguridad.md) |
+| Instrucciones para ejecutar las pruebas automatizadas | Este README: [Verificación automática](#verificación-automática) |
+
 ## Primeros pasos después de clonar
 
 Este repositorio versiona sus propios git hooks en `.githooks/`. Git no los

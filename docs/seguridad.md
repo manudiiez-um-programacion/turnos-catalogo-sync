@@ -60,6 +60,48 @@ Verificado en `ApiSecurityIntegrationTest` (`IdentidadesSeparadas`,
 `ApiInterna`, `ApiDeUsuario`) y en `CurrentAgendaApiIntegrationTest`
 (`Autorizacion`).
 
+## Pruebas de autorización y aislamiento (#33)
+
+La matriz de autorización queda simétrica entre las dos cadenas: cada caso
+que `ApiDeUsuario` prueba contra la API del usuario final —sin token,
+vencido, firmado con otra clave, emitido por otro emisor, un valor que no
+es un JWT— tiene su equivalente en `ApiInterna` contra la API que consume
+el servicio de turnos. Antes de este issue, la cadena interna solo estaba
+probada con un token válido, uno sin la autoridad y la ausencia de token;
+`TokensDePrueba` agregó `deServicioDeTurnosVencido`,
+`deServicioConOtraFirma` y `deServicioConOtroEmisor` para completar el
+mismo conjunto de casos del otro lado.
+
+- **Sin token / token inválido / vencido / otra clave / otro emisor**: 401
+  `AUTH_TOKEN_INVALID` o `AUTH_TOKEN_MISSING`, en las dos cadenas. Verificado
+  en `ApiSecurityIntegrationTest` (`ApiDeUsuario`, `ApiInterna`).
+- **Token de una identidad en el endpoint de la otra**: la cadena que
+  corresponde la rechaza con **401**, no 403. No es un caso sin cubrir: es
+  la separación criptográfica del ADR 0002 —cada cadena decodifica solo con
+  su propio secreto, así que el token ajeno nunca llega a la comprobación
+  de autoridad—, más estricta que un 403 porque no depende de que nadie
+  escriba la regla de autorización correcta. Verificado en
+  `IdentidadesSeparadas`.
+- **La API interna no expone ninguna escritura**: no es una prueba aparte
+  para `/api/internal/**`, es `ApiDeSoloLecturaTest`, que recorre *todos*
+  los mapeos registrados en el contexto (incluido Actuator) y falla si
+  alguno acepta un método distinto de `GET`/`HEAD`/`OPTIONS` — una
+  cobertura más estricta que la pedida, porque alcanza a toda la API y no
+  solo a la interna.
+- **Endpoint nuevo sin configuración de seguridad explícita → denegado por
+  defecto**: `BusquedaDePrueba` y `AgendaDePrueba`, en
+  `ApiSecurityIntegrationTest`, no están nombrados en ninguna regla de
+  `SecurityConfig` y aun así exigen token: lo que los protege es
+  `anyRequest().authenticated()` al final de cada cadena, no una regla
+  escrita a mano para ellos.
+- **Aislamiento de datos entre usuarios**: no aplica a este servicio. El
+  catálogo (categorías, profesionales, horarios) no es un dato por usuario,
+  es la misma copia local para cualquier identidad autenticada; aislar
+  turnos o reservas entre usuarios es responsabilidad del servicio de
+  turnos (fuera de alcance de #33, ver el issue).
+- **La suite corre en CI**: son pruebas `@SpringBootTest` con Testcontainers,
+  sin `@Tag("catedra")`, así que `./mvnw verify` las ejecuta siempre.
+
 ## Validación de entrada en cada límite
 
 - **Parámetros de búsqueda**: `ProfessionalSearchRequest` con Bean Validation
@@ -191,4 +233,4 @@ stack trace en el cuerpo.
 - [`docs/adr/0002-identidad-y-autenticacion-entre-servicios.md`](adr/0002-identidad-y-autenticacion-entre-servicios.md) — el modelo de identidades completo.
 - `SecurityConfig`, `ApiSecurityProperties`, `ApiExceptionHandler` — la implementación.
 - `ApiSecurityIntegrationTest`, `SecretosNoSeFiltranTest`, `CurrentAgendaApiIntegrationTest`, `UnmappedExceptionResponseTest` — las pruebas que respaldan cada afirmación de este documento.
-- Issues #15, #16, #17, #18, #32, #33 (las pruebas de autorización, siguiente issue).
+- Issues #15, #16, #17, #18, #32, #33.

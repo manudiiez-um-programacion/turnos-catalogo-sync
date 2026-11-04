@@ -1,6 +1,7 @@
 package com.um.catalogsync.sync.infrastructure.persistence.adapter;
 
 import com.um.catalogsync.sync.domain.model.SyncDecisionReason;
+import com.um.catalogsync.sync.domain.model.SyncError;
 import com.um.catalogsync.sync.domain.model.SyncErrorCode;
 import com.um.catalogsync.sync.domain.model.SyncMode;
 import com.um.catalogsync.sync.domain.model.SyncRun;
@@ -9,12 +10,17 @@ import com.um.catalogsync.sync.domain.model.SyncTrigger;
 import com.um.catalogsync.sync.domain.ports.out.SyncRunRepository;
 import com.um.catalogsync.sync.infrastructure.persistence.entity.SyncErrorEntity;
 import com.um.catalogsync.sync.infrastructure.persistence.entity.SyncRunEntity;
+import com.um.catalogsync.sync.infrastructure.metrics.SyncMetrics;
+import com.um.catalogsync.sync.infrastructure.persistence.mapper.SyncErrorMapper;
 import com.um.catalogsync.sync.infrastructure.persistence.mapper.SyncRunMapper;
 import com.um.catalogsync.sync.infrastructure.persistence.repository.JpaSyncErrorRepository;
 import com.um.catalogsync.sync.infrastructure.persistence.repository.JpaSyncRunRepository;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +49,28 @@ import org.springframework.transaction.annotation.Transactional;
  * sincronizacion entera en una transaccion, el registro tiene que seguir
  * sobreviviendo al rollback. La propagacion es la que lo promete.
  *
+ * <p><b>Las lecturas, al contrario, no abren transaccion propia</b>: son
+ * {@code readOnly} y {@code SUPPORTS}, asi que si alguien pregunta por el
+ * estado dentro de una transaccion, la aprovechan, y si no, no hay ninguna
+ * que abrir. Un {@code REQUIRES_NEW} acá seria costo sin ninguna garantia a
+ * cambio.
+ *
+ * <p><b>Los contadores de {@code /actuator/metrics} se incrementan desde
+ * acá</b>, y no en los casos de uso que cierran las corridas. Es a proposito:
+ * este adaptador es el <i>unico</i> lugar por donde pasan las tres
+ * transiciones, asi que un contador puesto acá no puede desacoplarse de la
+ * tabla. Puestos en la capa de aplicacion habria que acordarse de llamarlos
+ * en cada camino —la sincronizacion completa, la incremental, la que
+ * reconstruye despues de una incremental trunca— y el primero que se olvide
+ * deja la metrica mintiendo sin que nada falle.
+ *
+ * <p>Lo que si puede pasar: el incremento ocurre antes del commit de esta
+ * transaccion, asi que un fallo al commitear el registro contaria una corrida
+ * que no quedo en la tabla. Se acepta —un contador de observabilidad que se
+ * pase por uno en un caso que ademas significa que la base se cayo no cambia
+ * ninguna decision— y no se arregla con un {@code TransactionSynchronization}
+ * que agregaria mas maquinaria que la que vale el problema.
+ *
  * <p>Nunca devuelve una entidad JPA: todo sale mapeado a {@link SyncRun}.
  */
 @Component
@@ -52,6 +80,8 @@ public class JpaSyncRunRepositoryAdapter implements SyncRunRepository {
     private final JpaSyncRunRepository runs;
     private final JpaSyncErrorRepository errors;
     private final SyncRunMapper mapper;
+    private final SyncErrorMapper errorMapper;
+    private final SyncMetrics metricas;
 
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -78,7 +108,10 @@ public class JpaSyncRunRepositoryAdapter implements SyncRunRepository {
         corrida.setStatus(SyncStatus.SUCCEEDED.name());
         corrida.setToVersion(toVersion);
         corrida.setFinishedAt(ahora());
-        return mapper.toDomain(runs.save(corrida));
+
+        SyncRun cerrada = mapper.toDomain(runs.save(corrida));
+        metricas.corridaTerminada(cerrada);
+        return cerrada;
     }
 
     /**
@@ -101,16 +134,60 @@ public class JpaSyncRunRepositoryAdapter implements SyncRunRepository {
         corrida.setStatus(SyncStatus.FAILED.name());
         corrida.setToVersion(null);
         corrida.setFinishedAt(cuando);
-        SyncRunEntity cerrada = runs.save(corrida);
+        SyncRun cerrada = mapper.toDomain(runs.save(corrida));
 
-        errors.save(SyncErrorEntity.builder()
+        SyncError error = errorMapper.toDomain(errors.save(SyncErrorEntity.builder()
                 .syncRunId(runId)
                 .occurredAt(cuando)
                 .code(code.name())
                 .detail(detail)
-                .build());
+                .build()));
 
-        return mapper.toDomain(cerrada);
+        metricas.corridaTerminada(cerrada);
+        metricas.corridaFallida(error);
+        return cerrada;
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.SUPPORTS, readOnly = true)
+    public Optional<SyncRun> findLast() {
+        return runs.findFirstByOrderByStartedAtDescIdDesc().map(mapper::toDomain);
+    }
+
+    /**
+     * Los ultimos errores, acotados por quien pregunta.
+     *
+     * <p>El {@code PageRequest} se usa solo para limitar: no hay paginado que
+     * exponer, y pedir la primera pagina de un tamaño dado es la forma que
+     * Spring Data tiene de escribir un {@code LIMIT}.
+     *
+     * <p>Un limite que no sea positivo devuelve la lista vacia en lugar de
+     * fallar: {@code PageRequest} rechazaria el cero con una excepcion, y
+     * "mostrame cero errores" es una peticion coherente que no tiene por que
+     * romper un reporte de estado.
+     */
+    @Override
+    @Transactional(propagation = Propagation.SUPPORTS, readOnly = true)
+    public List<SyncError> findRecentErrors(int limit) {
+        if (limit <= 0) {
+            return List.of();
+        }
+        return errors.findAllByOrderByOccurredAtDescIdDesc(PageRequest.of(0, limit)).stream()
+                .map(errorMapper::toDomain)
+                .toList();
+    }
+
+    /**
+     * Aplica la retencion del historial.
+     *
+     * <p>{@code REQUIRES_NEW} por lo mismo que las tres transiciones, aunque
+     * el motivo acá sea mas simple: un {@code DELETE} masivo de JPQL necesita
+     * una transaccion y la invoca un trabajo periodico, que no tiene ninguna.
+     */
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public int purgeRunsFinishedBefore(Instant limite) {
+        return runs.purgarTerminadasAntesDe(limite);
     }
 
     /**

@@ -14,6 +14,7 @@ import com.um.catalogsync.sync.domain.model.IncrementalSyncOutcome;
 import com.um.catalogsync.sync.domain.model.IncrementalSyncResult;
 import com.um.catalogsync.sync.domain.model.PublishedCatalogMetadata;
 import com.um.catalogsync.sync.domain.model.SyncDecisionReason;
+import com.um.catalogsync.sync.domain.model.SyncError;
 import com.um.catalogsync.sync.domain.model.SyncErrorCode;
 import com.um.catalogsync.sync.domain.model.SyncMode;
 import com.um.catalogsync.sync.domain.model.SyncRun;
@@ -434,6 +435,22 @@ class SynchronizeCatalogUseCaseImplTest {
                     .startedAt(Instant.parse("2026-11-02T12:00:00Z"))
                     .finishedAt(Instant.parse("2026-11-02T12:00:01Z"))
                     .build();
+        }
+
+        /** Solo escribe: la decision de sincronizar no lee el historial. */
+        @Override
+        public Optional<SyncRun> findLast() {
+            return Optional.empty();
+        }
+
+        @Override
+        public List<SyncError> findRecentErrors(int limit) {
+            return List.of();
+        }
+
+        @Override
+        public int purgeRunsFinishedBefore(Instant limite) {
+            throw new UnsupportedOperationException("la decision no purga el historial");
         }
 
         @Override

@@ -7,6 +7,8 @@ import com.um.catalogsync.sync.domain.model.CatalogUpdatedEvent;
 import com.um.catalogsync.sync.domain.model.CatalogUpdatedOutcome;
 import com.um.catalogsync.sync.domain.ports.in.HandleCatalogUpdatedUseCase;
 import com.um.catalogsync.sync.infrastructure.messaging.mapper.CatalogUpdatedMapper;
+import com.um.catalogsync.sync.infrastructure.metrics.SyncMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -32,8 +34,10 @@ class CatalogUpdatedListenerTest {
     private final OffsetQueRegistra offset = new OffsetQueRegistra();
     private final CasoDeUsoQueRegistra casoDeUso = new CasoDeUsoQueRegistra();
 
+    private final SimpleMeterRegistry metricas = new SimpleMeterRegistry();
+
     private final CatalogUpdatedListener listener = new CatalogUpdatedListener(
-            new CatalogUpdatedMapper(new ObjectMapper()), casoDeUso);
+            new CatalogUpdatedMapper(new ObjectMapper()), casoDeUso, new SyncMetrics(metricas));
 
     @Test
     @DisplayName("Procesa el mensaje y despues confirma el offset")
@@ -47,6 +51,7 @@ class CatalogUpdatedListenerTest {
         assertThat(offset.confirmaciones).isEqualTo(1);
         assertThat(casoDeUso.recibidos.getFirst().getEventId())
                 .isEqualTo(CatalogUpdatedFixtures.EVENT_ID);
+        assertThat(eventos("PROCESSED")).isEqualTo(1);
     }
 
     @Test
@@ -60,6 +65,13 @@ class CatalogUpdatedListenerTest {
         // procesado y puede confirmar. No confirmarlo dejaria el mismo
         // mensaje reentregandose para siempre.
         assertThat(offset.confirmaciones).isEqualTo(1);
+        // Y queda contado: catalog.sync.events{outcome=DUPLICATE} es la
+        // evidencia de idempotencia que pide §11, sin tener que leer un log.
+        assertThat(eventos("DUPLICATE")).isEqualTo(1);
+        // Y no se cuenta como procesado: el contador separa los dos finales
+        // que para Kafka son iguales.
+        assertThat(metricas.find("catalog.sync.events").tag("outcome", "PROCESSED").counter())
+                .isNull();
     }
 
     @Test
@@ -72,6 +84,14 @@ class CatalogUpdatedListenerTest {
         // Se confirma para avanzar, y el ERROR del log es lo que queda.
         assertThat(offset.confirmaciones).isEqualTo(1);
         assertThat(casoDeUso.recibidos).isEmpty();
+        // No se cuenta como evento resuelto: nunca llego a ser uno, no se
+        // pudo ni leer su eventId.
+        assertThat(metricas.find("catalog.sync.events").counters()).isEmpty();
+    }
+
+    /** Cuantas notificaciones se contaron con ese resultado. */
+    private double eventos(String outcome) {
+        return metricas.get("catalog.sync.events").tag("outcome", outcome).counter().count();
     }
 
     @Test

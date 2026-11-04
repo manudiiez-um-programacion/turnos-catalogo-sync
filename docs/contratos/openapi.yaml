@@ -20,6 +20,9 @@ tags:
 - name: Agenda vigente (interno)
   description: Contrato de solo lectura con el servicio de turnos. Requiere el JWT
     tecnico interno del proyecto con la autoridad SERVICE_TURNOS.
+- name: Estado de sincronizacion (interno)
+  description: "Estado, atraso y errores de la sincronizacion con la catedra. Requiere\
+    \ el JWT tecnico interno del proyecto con la autoridad SERVICE_TURNOS."
 paths:
   /api/professionals:
     get:
@@ -158,6 +161,35 @@ paths:
             application/problem+json: {}
       security:
       - jwt-usuario: []
+  /api/internal/sync/status:
+    get:
+      tags:
+      - Estado de sincronizacion (interno)
+      summary: Estado y errores de sincronizacion
+      description: |-
+        Version local aplicada, estado del catalogo publicado por la catedra, atraso en versiones, ultimo intento de sincronizacion con su modo, motivo, inicio, fin y resultado, y los ultimos errores con su codigo estable.
+
+        El campo health distingue cuatro situaciones que piden reacciones distintas: UP_TO_DATE, BEHIND (se recupera solo), REBUILDING (hay una sincronizacion en curso) y DEGRADED (no se pudo verificar el origen o el ultimo intento fallo).
+
+        Responde 200 siempre, incluso sin catalogo aplicado o con la catedra inalcanzable. Consulta el estado del origen en vivo, nunca el catalogo: las busquedas se siguen resolviendo solo con datos locales (§6.2).
+      operationId: estadoDeSincronizacion
+      responses:
+        "200":
+          description: El estado de la sincronizacion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncStatus"
+        "401":
+          description: Sin token (AUTH_TOKEN_MISSING) o token invalido (AUTH_TOKEN_INVALID)
+          content:
+            application/problem+json: {}
+        "403":
+          description: Token valido sin la autoridad SERVICE_TURNOS (AUTH_FORBIDDEN)
+          content:
+            application/problem+json: {}
+      security:
+      - jwt-interno: []
   /api/internal/professionals/{professionalId}/agenda:
     get:
       tags:
@@ -300,6 +332,158 @@ components:
       - catalogVersion
       - content
       - page
+    LastSync:
+      type: object
+      description: "El ultimo intento de sincronizacion que arranco. Puede estar todavia\
+        \ en curso, y en ese caso status es RUNNING y finishedAt viene nulo."
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 412
+        mode:
+          type: string
+          enum:
+          - FULL
+          - INCREMENTAL
+          example: INCREMENTAL
+        trigger:
+          type: string
+          enum:
+          - STARTUP
+          - EVENT
+          - RECONCILIATION
+          - DISCONTINUITY
+          - MANUAL
+          example: EVENT
+        decisionReason:
+          type: string
+          enum:
+          - NO_LOCAL_VERSION
+          - VERSION_OUT_OF_WINDOW
+          - MISSING_VERSION
+          - STATE_UNVERIFIABLE
+          - BEHIND_CURRENT_VERSION
+          - REQUESTED
+          example: BEHIND_CURRENT_VERSION
+        status:
+          type: string
+          enum:
+          - RUNNING
+          - SUCCEEDED
+          - FAILED
+          example: SUCCEEDED
+        fromVersion:
+          type: integer
+          format: int64
+          example: 127
+        toVersion:
+          type: integer
+          format: int64
+          example: 128
+        startedAt:
+          type: string
+          format: date-time
+          example: 2026-11-03T18:29:58Z
+        finishedAt:
+          type: string
+          format: date-time
+          example: 2026-11-03T18:30:00Z
+      required:
+      - id
+      - mode
+      - startedAt
+      - status
+      - trigger
+    RemoteCatalogState:
+      type: object
+      description: "Estado del catalogo publicado por la catedra. Se lee en el momento\
+        \ de la consulta; si no se pudo leer, state viene en UNREACHABLE y los numeros\
+        \ nulos."
+      properties:
+        state:
+          type: string
+          enum:
+          - KNOWN
+          - NOT_PUBLISHED
+          - UNREACHABLE
+          example: KNOWN
+        currentVersion:
+          type: integer
+          format: int64
+          example: 128
+        oldestAvailableVersion:
+          type: integer
+          format: int64
+          example: 120
+        publishedAt:
+          type: string
+          format: date-time
+          example: 2026-11-03T18:29:50Z
+      required:
+      - state
+    SyncError:
+      type: object
+      description: Un error registrado por una corrida de sincronizacion
+      properties:
+        syncRunId:
+          type: integer
+          format: int64
+          example: 412
+        occurredAt:
+          type: string
+          format: date-time
+          example: 2026-11-03T18:30:00Z
+        code:
+          type: string
+          description: "Codigo estable: comparar por este valor, nunca por detail"
+          example: SNAPSHOT_UNAVAILABLE
+        detail:
+          type: string
+          description: Texto libre para diagnosticar. Nunca incluye secretos
+          example: No se pudo conectar con el servicio central de la catedra
+      required:
+      - code
+      - occurredAt
+      - syncRunId
+    SyncStatus:
+      type: object
+      description: "Estado y errores de la sincronizacion con la catedra. Responde\
+        \ siempre 200, incluso sin catalogo aplicado o con la catedra caida: ese es\
+        \ justamente el contenido mas util del reporte."
+      properties:
+        health:
+          type: string
+          description: "UP_TO_DATE: la copia local esta en la version publicada. BEHIND:\
+            \ faltan versiones, se recupera solo. REBUILDING: hay una sincronizacion\
+            \ en curso. DEGRADED: no se pudo verificar el origen o el ultimo intento\
+            \ fallo; necesita intervencion."
+          enum:
+          - UP_TO_DATE
+          - BEHIND
+          - REBUILDING
+          - DEGRADED
+          example: UP_TO_DATE
+        localVersion:
+          $ref: "#/components/schemas/AppliedCatalogVersion"
+        remote:
+          $ref: "#/components/schemas/RemoteCatalogState"
+        versionsBehind:
+          type: integer
+          format: int64
+          description: Atraso en versiones. Nulo si no hay version local o no se conoce
+            la del origen
+          example: 0
+        lastSync:
+          $ref: "#/components/schemas/LastSync"
+        recentErrors:
+          type: array
+          items:
+            $ref: "#/components/schemas/SyncError"
+      required:
+      - health
+      - recentErrors
+      - remote
     AgendaProfessional:
       type: object
       description: Datos vigentes del profesional

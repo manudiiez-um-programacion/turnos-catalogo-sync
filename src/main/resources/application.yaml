@@ -54,8 +54,12 @@ server:
 management:
   endpoints:
     web:
+      # metrics suma los contadores de sincronizacion (#28): corridas por modo
+      # y resultado, errores por codigo y notificaciones por resultado, donde
+      # outcome=DUPLICATE es la evidencia de idempotencia de §11. Queda detras
+      # de token, como /actuator/info: lo unico publico es health.
       exposure:
-        include: health,info
+        include: health,info,metrics
   endpoint:
     health:
       show-details: never
@@ -176,6 +180,23 @@ sync:
     enabled: ${SYNC_RECONCILIATION_ENABLED:true}
     interval: ${SYNC_RECONCILIATION_INTERVAL:5m}
     initial-delay: 1m
+
+  # Retencion del historial de sincronizacion (issue #28).
+  #
+  # sync_run suma una fila por intento y nada la achica sola: con el chequeo
+  # periodico corriendo cada pocos minutos, la tabla crece aunque nunca pase
+  # nada. Los errores se van con su corrida (ON DELETE CASCADE).
+  #
+  # A diferencia de la ventana de processed-events, esta no es una restriccion
+  # de correctitud: borrar de mas no rompe nada, solo deja menos para
+  # diagnosticar. Noventa dias cubren la entrega y un cuatrimestre entero.
+  #
+  # La corrida mas reciente nunca se borra, aunque sea mas vieja que la
+  # ventana: un servicio quieto informaria "ninguna sincronizacion" en lugar
+  # de "la ultima fue hace mucho", que es el dato que se esta buscando.
+  history:
+    retention: ${SYNC_HISTORY_RETENTION:90d}
+    purge-interval: 6h
 
 # Seguridad de la API propia (ADR 0002, issue #17).
 #

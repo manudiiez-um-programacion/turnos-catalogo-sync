@@ -16,6 +16,7 @@ import com.um.catalogsync.sync.application.exception.VersionRegressionException;
 import com.um.catalogsync.sync.domain.model.CatalogSnapshot;
 import com.um.catalogsync.sync.domain.model.CatalogVersion;
 import com.um.catalogsync.sync.domain.model.CatalogVersionSource;
+import com.um.catalogsync.sync.domain.model.SyncError;
 import com.um.catalogsync.sync.domain.model.SyncErrorCode;
 import com.um.catalogsync.sync.domain.model.SyncDecisionReason;
 import com.um.catalogsync.sync.domain.model.SyncMode;
@@ -263,6 +264,23 @@ class RunFullSyncUseCaseImplTest {
             corrida.setToVersion(toVersion);
             corrida.setFinishedAt(Instant.parse("2026-09-10T13:45:00Z"));
             return corrida;
+        }
+
+        /** Las lecturas y la purga no las usa este caso de uso: solo escribe. */
+        @Override
+        public Optional<SyncRun> findLast() {
+            return filas.isEmpty() ? Optional.empty() : Optional.of(filas.getLast());
+        }
+
+        @Override
+        public List<SyncError> findRecentErrors(int limit) {
+            return List.of();
+        }
+
+        @Override
+        public int purgeRunsFinishedBefore(Instant limite) {
+            throw new UnsupportedOperationException(
+                    "la sincronizacion completa no purga el historial");
         }
 
         @Override

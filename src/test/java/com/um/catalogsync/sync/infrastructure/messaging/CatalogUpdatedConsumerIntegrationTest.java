@@ -8,6 +8,8 @@ import com.um.catalogsync.integration.domain.model.IntegrationConfig;
 import com.um.catalogsync.shared.infrastructure.AbstractPostgresIntegrationTest;
 import com.um.catalogsync.sync.domain.ports.in.HandleCatalogUpdatedUseCase;
 import com.um.catalogsync.sync.infrastructure.messaging.mapper.CatalogUpdatedMapper;
+import com.um.catalogsync.sync.infrastructure.metrics.SyncMetrics;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -273,7 +275,9 @@ class CatalogUpdatedConsumerIntegrationTest extends AbstractPostgresIntegrationT
 
     private CatalogUpdatedListener listener() {
         return new CatalogUpdatedListener(
-                new CatalogUpdatedMapper(new ObjectMapper()), handleCatalogUpdated);
+                new CatalogUpdatedMapper(new ObjectMapper()),
+                handleCatalogUpdated,
+                new SyncMetrics(new SimpleMeterRegistry()));
     }
 
     private IntegrationConfig configuracion(String consumerGroupId) {

@@ -83,6 +83,7 @@ Nombres exactos de cada integración, según §7, §14 y §15 de la referencia
 | Kafka de la cátedra | cátedra → este servicio | credenciales del grupo | topic `catedra.catalog.{groupId}`, evento `CatalogUpdated` (§15.3) |
 | REST propia, búsqueda | app KMP → este servicio | JWT de usuario (HS256, `JWT_USER_SECRET`) | `GET /api/professionals` |
 | REST propia, agenda | servicio de turnos → este servicio | JWT técnico interno (autoridad `SERVICE_TURNOS`) | `GET /api/internal/professionals/{professionalId}/agenda` |
+| REST propia, estado | servicio de turnos → este servicio | JWT técnico interno (autoridad `SERVICE_TURNOS`) | `GET /api/internal/sync/status` (§4.1: informar estado y errores) |
 | Kafka de turnos | ambas | credenciales del grupo | `alumnos.turnos.acciones.{groupId}` y `catedra.turnos.telefono.{groupId}`, **fuera de este repo** |
 
 ### Qué muestra el diagrama que no se ve en el código
@@ -283,7 +284,7 @@ legítima viene de la sincronización.
 
 | # | Adaptador | Slices | Puertos que cruzan la frontera | Estado |
 | --- | --- | --- | --- | --- |
-| 1 | API REST propia (`infrastructure/web`) | `professional`, `schedule` | `SearchProfessionalsUseCase` (in), `GetCurrentAgendaUseCase` (in) | implementado |
+| 1 | API REST propia (`infrastructure/web`) | `professional`, `schedule`, `sync` | `SearchProfessionalsUseCase` (in), `GetCurrentAgendaUseCase` (in), `GetSyncStatusUseCase` (in) | implementado |
 | 2 | Cliente REST de la cátedra (`infrastructure/client`) | `sync`, `integration` | `CatalogSnapshotPort` (out), `TechnicalAuthPort` (out), `IntegrationConfigPort` (out) | implementado |
 | 3 | Redis de la cátedra (`infrastructure/redis`) | `sync` | `PublishedCatalogPort` (out), `CatalogChangesPort` (out) | implementado |
 | 4 | Kafka de la cátedra (`infrastructure/messaging`) | `sync` | `HandleCatalogUpdatedUseCase` (in) | implementado |
@@ -295,11 +296,21 @@ delegarlo, y después confirmar el offset —en ese orden, que es el que exige
 §16—. La deduplicación por `eventId` y la decisión de qué hacer con la versión
 nueva son del slice `sync`, no suyas.
 
-Hay dos componentes más en `infrastructure` que no son adaptadores de una
-superficie externa, sino disparadores internos que entran por los mismos
-puertos de entrada: `InitialCatalogSyncRunner`, que lanza la sincronización
-completa al arrancar con la base vacía (#14), y `CatalogSyncHealthIndicator`,
-que publica el estado de sincronización en `/actuator/health`.
+Hay más componentes en `infrastructure` que no son adaptadores de una
+superficie externa: `InitialCatalogSyncRunner`, que lanza la sincronización
+completa al arrancar con la base vacía (#14); `CatalogReconciliationJob`, que
+compara versiones cada tanto para recuperar una notificación perdida (#27);
+`CatalogSyncHealthIndicator`, que publica si la copia local es servible en
+`/actuator/health`; `SyncMetrics`, que lleva los contadores de
+`/actuator/metrics` (#28); y los dos trabajos de retención, que acotan el
+crecimiento de `processed_event` y de `sync_run`.
+
+`SyncMetrics` **no implementa un puerto** y es deliberado: ninguna decisión del
+servicio depende de esos números, así que no hay nada que la aplicación
+necesite de afuera. Los contadores se incrementan en el adaptador de
+persistencia del historial, que es el único lugar por donde pasan las tres
+transiciones de una corrida, y en el adaptador de Kafka, que es donde llega la
+notificación.
 
 ## 3. Cómo se hablan los slices entre sí
 

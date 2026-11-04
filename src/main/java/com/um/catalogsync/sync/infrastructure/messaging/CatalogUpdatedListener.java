@@ -5,6 +5,7 @@ import com.um.catalogsync.sync.domain.model.CatalogUpdatedEvent;
 import com.um.catalogsync.sync.domain.model.CatalogUpdatedOutcome;
 import com.um.catalogsync.sync.domain.ports.in.HandleCatalogUpdatedUseCase;
 import com.um.catalogsync.sync.infrastructure.messaging.mapper.CatalogUpdatedMapper;
+import com.um.catalogsync.sync.infrastructure.metrics.SyncMetrics;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -35,6 +36,15 @@ import org.springframework.stereotype.Component;
  * efectos y <i>puede confirmar</i>. No confirmarlo dejaria el mismo mensaje
  * reentregandose para siempre.
  *
+ * <p><b>Acá se cuentan los eventos, y no en el caso de uso.</b> El contador
+ * por resultado —y en particular {@code outcome=DUPLICATE}, que es la
+ * evidencia de idempotencia de §11— se incrementa en este adaptador porque es
+ * el borde donde el mensaje <i>llega</i>: contar en la aplicacion mezclaria
+ * la decision de que hacer con un duplicado, que es del dominio, con el
+ * hecho de haber recibido uno, que es del transporte. Un mensaje envenenado
+ * no se cuenta como evento resuelto porque nunca llego a ser uno: no se pudo
+ * siquiera leer su {@code eventId}.
+ *
  * <p><b>Las dos clases de falla se tratan distinto, y es la decision mas
  * importante de esta clase.</b> Un mensaje que no cumple §15.3 no se va a
  * arreglar en el proximo intento: reintentarlo dejaria la particion trabada
@@ -50,6 +60,7 @@ public class CatalogUpdatedListener implements AcknowledgingMessageListener<Stri
 
     private final CatalogUpdatedMapper mapper;
     private final HandleCatalogUpdatedUseCase handleCatalogUpdated;
+    private final SyncMetrics metricas;
 
     @Override
     public void onMessage(ConsumerRecord<String, String> mensaje, Acknowledgment offset) {
@@ -71,6 +82,7 @@ public class CatalogUpdatedListener implements AcknowledgingMessageListener<Stri
         // se vuelve a entregar, que es lo correcto para una falla
         // transitoria.
         CatalogUpdatedOutcome resultado = handleCatalogUpdated.handle(evento);
+        metricas.notificacionResuelta(resultado);
 
         offset.acknowledge();
         log.debug("Offset confirmado para {} con resultado {}", ubicacion, resultado);

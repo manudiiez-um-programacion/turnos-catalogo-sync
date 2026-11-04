@@ -45,6 +45,11 @@ Servicio de **catálogo y sincronización** del proyecto integrador 2026
   están en `docs/adr/0001-arquitectura-hexagonal.md`; el layout y las
   convenciones, en la skill `hexagonal-slicing`
   (`.claude/skills/hexagonal-slicing/SKILL.md`).
+- La estrategia de sincronización e idempotencia ya está decidida, escrita y
+  probada: `docs/adr/0004-sincronizacion-e-idempotencia.md` (las decisiones y
+  la tabla que asocia cada afirmación con su test) y `docs/sincronizacion.md`
+  (la narrativa que pide §12). No volver a decidir dónde va la transacción,
+  qué manda entre Redis y el evento, ni cuándo se confirma el offset.
 
 ## Documentación de la cátedra (leer cuando haga falta)
 - `docs/catedra/PROJECT_STATEMENT-v1.md`: enunciado.

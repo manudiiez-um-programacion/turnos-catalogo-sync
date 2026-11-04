@@ -211,6 +211,41 @@ class ApiSecurityIntegrationTest extends AbstractPostgresIntegrationTest {
             assertThat(respuesta.statusCode()).isEqualTo(401);
             assertThat(leer(respuesta).path("code").asString()).isEqualTo("AUTH_TOKEN_MISSING");
         }
+
+        @Test
+        @DisplayName("token tecnico vencido: 401 AUTH_TOKEN_INVALID (#33)")
+        void tokenVencido() throws Exception {
+            HttpResponse<String> respuesta = pedir(RUTA_INTERNA, TokensDePrueba.deServicioDeTurnosVencido());
+
+            assertThat(respuesta.statusCode()).isEqualTo(401);
+            assertThat(leer(respuesta).path("code").asString()).isEqualTo("AUTH_TOKEN_INVALID");
+        }
+
+        @Test
+        @DisplayName("token tecnico firmado con otra clave: 401 AUTH_TOKEN_INVALID (#33)")
+        void firmaDeOtraClave() throws Exception {
+            HttpResponse<String> respuesta = pedir(RUTA_INTERNA, TokensDePrueba.deServicioConOtraFirma());
+
+            assertThat(respuesta.statusCode()).isEqualTo(401);
+            assertThat(leer(respuesta).path("code").asString()).isEqualTo("AUTH_TOKEN_INVALID");
+        }
+
+        @Test
+        @DisplayName("token tecnico emitido por otro: 401, aunque la firma sea la correcta (#33)")
+        void otroEmisor() throws Exception {
+            HttpResponse<String> respuesta = pedir(RUTA_INTERNA, TokensDePrueba.deServicioConOtroEmisor());
+
+            assertThat(respuesta.statusCode()).isEqualTo(401);
+        }
+
+        @Test
+        @DisplayName("un valor que no es un JWT en la API interna: 401, no 500 (#33)")
+        void credencialQueNoEsUnJwt() throws Exception {
+            HttpResponse<String> respuesta = pedir(RUTA_INTERNA, "jwt-tecnico-de-catedra-opaco");
+
+            assertThat(respuesta.statusCode()).isEqualTo(401);
+            assertThat(leer(respuesta).path("code").asString()).isEqualTo("AUTH_TOKEN_INVALID");
+        }
     }
 
     @Nested

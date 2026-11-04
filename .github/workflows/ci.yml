@@ -15,6 +15,15 @@
 # El analisis de SonarCloud si usa un secret, SONAR_TOKEN, pero es
 # opcional: si no esta configurado el analisis se omite con un aviso y el
 # job sigue verificando el codigo igual.
+#
+# Y corre SOLO en pull requests y en main. La organizacion esta en el plan
+# gratuito, que no analiza ramas distintas de main: la API contesta
+# "Organization is not allowed to access data from non main branches". Un
+# analisis de rama igual publica su check, y ese check queda rojo siempre,
+# asi que convivian dos checks de Sonar por PR con uno permanentemente en
+# rojo. No es solo ruido: en el PR #80 el gate real fallo y nadie lo noto
+# porque era indistinguible del rojo de siempre (issue #84). Con el filtro
+# queda un solo check por PR, y un rojo ahi vuelve a significar algo.
 
 name: CI
 
@@ -91,27 +100,36 @@ jobs:
       - name: Compilar y correr las pruebas
         run: ./mvnw --batch-mode --no-transfer-progress verify
 
-      # El analisis necesita el token, que es un secret del repositorio.
-      # Se consulta en un paso aparte para no pasarle el secret al resto de
-      # los pasos y para que, si todavia no esta configurado, el job siga
-      # en verde informando sobre el codigo en lugar de fallar por una
-      # cuenta externa que no depende de este repo.
-      - name: Ver si hay token de SonarCloud
+      # Las dos condiciones del analisis se deciden en un solo paso, para que
+      # haya un unico lugar donde mirar por que corrio o por que no.
+      #
+      # El token se consulta en un paso aparte del analisis para no pasarle el
+      # secret al resto de los pasos y para que, si todavia no esta
+      # configurado, el job siga en verde informando sobre el codigo en lugar
+      # de fallar por una cuenta externa que no depende de este repo.
+      #
+      # El filtro por evento y rama esta explicado en el encabezado: el plan
+      # gratuito no analiza ramas distintas de main, y un analisis de rama deja
+      # un check rojo permanente que tapa los rojos que importan (issue #84).
+      - name: Ver si corresponde analizar con SonarCloud
         id: sonar
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          if [ -n "$SONAR_TOKEN" ]; then
-            echo "disponible=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "disponible=false" >> "$GITHUB_OUTPUT"
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "analizar=false" >> "$GITHUB_OUTPUT"
             echo "::notice::Analisis de SonarCloud omitido: falta el secret SONAR_TOKEN."
+          elif [ "$GITHUB_EVENT_NAME" = "pull_request" ] || [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            echo "analizar=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "analizar=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Analisis de SonarCloud omitido: la organizacion solo analiza main y pull requests. El codigo se analiza al abrir el PR."
           fi
 
       # El analizador descarga sus reglas y las cachea acá. Sin esto las
       # vuelve a bajar en cada corrida.
       - name: Cachear el analizador de Sonar
-        if: steps.sonar.outputs.disponible == 'true'
+        if: steps.sonar.outputs.analizar == 'true'
         uses: actions/cache@v6
         with:
           path: ~/.sonar/cache
@@ -127,7 +145,7 @@ jobs:
       # La version del plugin no se repite acá: esta fijada en el
       # pluginManagement del pom, asi que `sonar:sonar` usa esa.
       - name: Analizar con SonarCloud
-        if: steps.sonar.outputs.disponible == 'true'
+        if: steps.sonar.outputs.analizar == 'true'
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: ./mvnw --batch-mode --no-transfer-progress sonar:sonar

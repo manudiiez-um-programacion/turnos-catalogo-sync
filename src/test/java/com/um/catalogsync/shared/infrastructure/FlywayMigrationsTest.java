@@ -39,8 +39,8 @@ class FlywayMigrationsTest extends AbstractPostgresIntegrationTest {
                         + "AND version IS NOT NULL ORDER BY installed_rank",
                 String.class);
 
-        assertThat(aplicadas).containsExactly("1", "2");
-        assertThat(flyway.info().current().getVersion().toString()).isEqualTo("2");
+        assertThat(aplicadas).containsExactly("1", "2", "3");
+        assertThat(flyway.info().current().getVersion().toString()).isEqualTo("3");
     }
 
     @Test

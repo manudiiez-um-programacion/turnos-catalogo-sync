@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.groups.Tuple.tuple;
 
+import com.um.catalogsync.sync.domain.model.SyncDecisionReason;
 import com.um.catalogsync.category.domain.ports.out.CategoryRepository;
 import com.um.catalogsync.professional.application.exception.UnknownCategoryException;
 import com.um.catalogsync.professional.domain.ports.out.ProfessionalRepository;
@@ -92,7 +93,7 @@ class FullSyncIntegrationTest extends AbstractPostgresIntegrationTest {
     @DisplayName("Aplica las tres colecciones y deja la version en snapshotVersion")
     void aplicaElSnapshotCompleto() {
         SyncRun corrida = sincronizacionQueTrae(CatalogSnapshotFixtures.version(7L))
-                .run(SyncTrigger.STARTUP);
+                .run(SyncTrigger.STARTUP, SyncDecisionReason.REQUESTED);
 
         assertThat(categories.findAll()).hasSize(1);
         assertThat(professionals.findAll()).hasSize(1);
@@ -109,7 +110,7 @@ class FullSyncIntegrationTest extends AbstractPostgresIntegrationTest {
     @DisplayName("Las entidades deshabilitadas se conservan como baja logica")
     void conservaLasDeshabilitadas() {
         sincronizacionQueTrae(CatalogSnapshotFixtures.conDeshabilitadas(7L))
-                .run(SyncTrigger.STARTUP);
+                .run(SyncTrigger.STARTUP, SyncDecisionReason.REQUESTED);
 
         // Se guardan las dos de cada coleccion, la habilitada y la que no.
         // §14.4: una entidad deshabilitada es una baja logica que la copia
@@ -128,9 +129,9 @@ class FullSyncIntegrationTest extends AbstractPostgresIntegrationTest {
     @Test
     @DisplayName("Un snapshot vacio deja la copia local vacia y la version asentada")
     void aplicaUnSnapshotVacio() {
-        sincronizacionQueTrae(CatalogSnapshotFixtures.version(7L)).run(SyncTrigger.STARTUP);
+        sincronizacionQueTrae(CatalogSnapshotFixtures.version(7L)).run(SyncTrigger.STARTUP, SyncDecisionReason.REQUESTED);
 
-        sincronizacionQueTrae(CatalogSnapshotFixtures.vacio(8L)).run(SyncTrigger.EVENT);
+        sincronizacionQueTrae(CatalogSnapshotFixtures.vacio(8L)).run(SyncTrigger.EVENT, SyncDecisionReason.REQUESTED);
 
         // Tres colecciones vacias es un snapshot valido: una catedra que
         // borro todo su catalogo. La copia local tiene que reflejarlo.
@@ -145,9 +146,9 @@ class FullSyncIntegrationTest extends AbstractPostgresIntegrationTest {
     @DisplayName("Reemplaza la copia anterior en lugar de acumularla")
     void reemplazaLaCopiaAnterior() {
         sincronizacionQueTrae(CatalogSnapshotFixtures.conDeshabilitadas(7L))
-                .run(SyncTrigger.STARTUP);
+                .run(SyncTrigger.STARTUP, SyncDecisionReason.REQUESTED);
 
-        sincronizacionQueTrae(CatalogSnapshotFixtures.version(8L)).run(SyncTrigger.EVENT);
+        sincronizacionQueTrae(CatalogSnapshotFixtures.version(8L)).run(SyncTrigger.EVENT, SyncDecisionReason.REQUESTED);
 
         // El snapshot es una foto, no un delta: lo que no viene, no esta.
         assertThat(categories.findAll()).extracting("id").containsExactly(1L);
@@ -160,8 +161,8 @@ class FullSyncIntegrationTest extends AbstractPostgresIntegrationTest {
     void esIdempotente() {
         CatalogSnapshot snapshot = CatalogSnapshotFixtures.conDeshabilitadas(7L);
 
-        sincronizacionQueTrae(snapshot).run(SyncTrigger.STARTUP);
-        sincronizacionQueTrae(snapshot).run(SyncTrigger.EVENT);
+        sincronizacionQueTrae(snapshot).run(SyncTrigger.STARTUP, SyncDecisionReason.REQUESTED);
+        sincronizacionQueTrae(snapshot).run(SyncTrigger.EVENT, SyncDecisionReason.REQUESTED);
 
         // Reprocesar no altera el resultado (§6.2, §18.1): avanzar a la
         // misma version esta permitido y no cuenta como retroceder.
@@ -178,10 +179,10 @@ class FullSyncIntegrationTest extends AbstractPostgresIntegrationTest {
     @Test
     @DisplayName("La version puede retroceder por snapshot, que es el camino de la reconstruccion")
     void laVersionRetrocedePorSnapshot() {
-        sincronizacionQueTrae(CatalogSnapshotFixtures.version(7L)).run(SyncTrigger.STARTUP);
+        sincronizacionQueTrae(CatalogSnapshotFixtures.version(7L)).run(SyncTrigger.STARTUP, SyncDecisionReason.REQUESTED);
 
         sincronizacionQueTrae(CatalogSnapshotFixtures.version(3L))
-                .run(SyncTrigger.DISCONTINUITY);
+                .run(SyncTrigger.DISCONTINUITY, SyncDecisionReason.REQUESTED);
 
         // La version describe lo que la copia local TIENE, no lo mas alto que
         // alguna vez supimos (§18.2). Despues de reemplazarla con el
@@ -196,13 +197,13 @@ class FullSyncIntegrationTest extends AbstractPostgresIntegrationTest {
     @DisplayName("Si falla el ultimo paso, la copia anterior y la version quedan intactas")
     void elFalloEnHorariosNoDejaRastro() {
         sincronizacionQueTrae(CatalogSnapshotFixtures.conDeshabilitadas(7L))
-                .run(SyncTrigger.STARTUP);
+                .run(SyncTrigger.STARTUP, SyncDecisionReason.REQUESTED);
 
         // El horario apunta a un profesional que el snapshot no trae, asi que
         // estalla en el paso 5 de 5, cuando categorias y profesionales ya se
         // reemplazaron.
         assertThatThrownBy(() -> sincronizacionQueTrae(
-                CatalogSnapshotFixtures.conHorarioHuerfano(8L)).run(SyncTrigger.EVENT))
+                CatalogSnapshotFixtures.conHorarioHuerfano(8L)).run(SyncTrigger.EVENT, SyncDecisionReason.REQUESTED))
                 .isInstanceOf(UnknownProfessionalException.class);
 
         // Esto es el criterio central del issue: todo lo de la version 7
@@ -217,12 +218,12 @@ class FullSyncIntegrationTest extends AbstractPostgresIntegrationTest {
     @Test
     @DisplayName("Si falla el paso de profesionales, tampoco queda rastro")
     void elFalloEnProfesionalesNoDejaRastro() {
-        sincronizacionQueTrae(CatalogSnapshotFixtures.version(7L)).run(SyncTrigger.STARTUP);
+        sincronizacionQueTrae(CatalogSnapshotFixtures.version(7L)).run(SyncTrigger.STARTUP, SyncDecisionReason.REQUESTED);
 
         // El profesional apunta a una categoria que el snapshot no trae:
         // estalla en el paso 4, cuando las categorias ya se reemplazaron.
         assertThatThrownBy(() -> sincronizacionQueTrae(
-                CatalogSnapshotFixtures.conProfesionalHuerfano(8L)).run(SyncTrigger.EVENT))
+                CatalogSnapshotFixtures.conProfesionalHuerfano(8L)).run(SyncTrigger.EVENT, SyncDecisionReason.REQUESTED))
                 .isInstanceOf(UnknownCategoryException.class);
 
         assertThat(categories.findAll()).extracting("id").containsExactly(1L);
@@ -236,7 +237,7 @@ class FullSyncIntegrationTest extends AbstractPostgresIntegrationTest {
     @DisplayName("Con la base vacia, un fallo la deja vacia y sin version")
     void elFalloConBaseVaciaNoDejaVersion() {
         assertThatThrownBy(() -> sincronizacionQueTrae(
-                CatalogSnapshotFixtures.conHorarioHuerfano(7L)).run(SyncTrigger.STARTUP))
+                CatalogSnapshotFixtures.conHorarioHuerfano(7L)).run(SyncTrigger.STARTUP, SyncDecisionReason.REQUESTED))
                 .isInstanceOf(UnknownProfessionalException.class);
 
         // Sin version y no en la version 0: son dos estados distintos, y
@@ -251,8 +252,8 @@ class FullSyncIntegrationTest extends AbstractPostgresIntegrationTest {
     @Test
     @DisplayName("Una corrida exitosa registra inicio, fin, resultado y motivo")
     void registraLaCorridaExitosa() {
-        sincronizacionQueTrae(CatalogSnapshotFixtures.version(7L)).run(SyncTrigger.STARTUP);
-        sincronizacionQueTrae(CatalogSnapshotFixtures.version(9L)).run(SyncTrigger.EVENT);
+        sincronizacionQueTrae(CatalogSnapshotFixtures.version(7L)).run(SyncTrigger.STARTUP, SyncDecisionReason.REQUESTED);
+        sincronizacionQueTrae(CatalogSnapshotFixtures.version(9L)).run(SyncTrigger.EVENT, SyncDecisionReason.REQUESTED);
 
         assertThat(corridas()).hasSize(2);
         assertThat(corridas().getLast()).satisfies(fila -> {
@@ -270,7 +271,7 @@ class FullSyncIntegrationTest extends AbstractPostgresIntegrationTest {
     @Test
     @DisplayName("La primera corrida registra from_version nulo, no cero")
     void registraLaPrimeraCorridaSinVersionPrevia() {
-        sincronizacionQueTrae(CatalogSnapshotFixtures.version(7L)).run(SyncTrigger.STARTUP);
+        sincronizacionQueTrae(CatalogSnapshotFixtures.version(7L)).run(SyncTrigger.STARTUP, SyncDecisionReason.REQUESTED);
 
         assertThat(corridas()).singleElement().satisfies(fila -> {
             assertThat(fila).containsEntry("from_version", null);
@@ -282,7 +283,7 @@ class FullSyncIntegrationTest extends AbstractPostgresIntegrationTest {
     @DisplayName("El registro de la corrida fallida SOBREVIVE al rollback de los datos")
     void elRegistroDelFalloSobreviveAlRollback() {
         assertThatThrownBy(() -> sincronizacionQueTrae(
-                CatalogSnapshotFixtures.conHorarioHuerfano(7L)).run(SyncTrigger.DISCONTINUITY))
+                CatalogSnapshotFixtures.conHorarioHuerfano(7L)).run(SyncTrigger.DISCONTINUITY, SyncDecisionReason.REQUESTED))
                 .isInstanceOf(UnknownProfessionalException.class);
 
         // Es el punto de que el historial se escriba en REQUIRES_NEW: los
@@ -315,11 +316,11 @@ class FullSyncIntegrationTest extends AbstractPostgresIntegrationTest {
     @DisplayName("Una corrida fallida y despues una exitosa dejan dos filas distinguibles")
     void registraLasDosCorridas() {
         assertThatThrownBy(() -> sincronizacionQueTrae(
-                CatalogSnapshotFixtures.conHorarioHuerfano(7L)).run(SyncTrigger.STARTUP))
+                CatalogSnapshotFixtures.conHorarioHuerfano(7L)).run(SyncTrigger.STARTUP, SyncDecisionReason.REQUESTED))
                 .isInstanceOf(UnknownProfessionalException.class);
 
         sincronizacionQueTrae(CatalogSnapshotFixtures.version(7L))
-                .run(SyncTrigger.DISCONTINUITY);
+                .run(SyncTrigger.DISCONTINUITY, SyncDecisionReason.REQUESTED);
 
         assertThat(corridas()).extracting("status", "triggered_by")
                 .containsExactly(

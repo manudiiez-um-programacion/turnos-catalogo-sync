@@ -3,7 +3,6 @@ package com.um.catalogsync.sync.infrastructure.startup;
 import com.um.catalogsync.sync.application.service.CatalogSyncService;
 import com.um.catalogsync.sync.application.service.CatalogVersionService;
 import com.um.catalogsync.sync.domain.model.CatalogVersion;
-import com.um.catalogsync.sync.domain.model.SyncRun;
 import com.um.catalogsync.sync.domain.model.SyncTrigger;
 import java.util.Optional;
 import java.util.concurrent.Executor;
@@ -15,23 +14,24 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
- * Pide el catalogo completo la primera vez que el servicio arranca sobre
- * una base vacia (§6.1).
+ * Pone la copia local al dia cuando el servicio arranca (§6.1, §8).
  *
- * <p>Es el unico componente que decide <i>cuando</i> correr la primera
- * sincronizacion completa. El que sabe <i>como</i> correrla es
- * {@code CatalogSyncService}, y por eso aca no aparecen ni
- * {@code CatalogSnapshotPort} ni ningun repositorio: esta clase mira el
- * estado local, decide y delega.
+ * <p>Es el componente que decide <i>cuando</i> sincronizar al arrancar. El
+ * que sabe <i>como</i> —y si corresponde una completa o una incremental— es
+ * {@code CatalogSyncService.synchronize}, y por eso aca no aparecen ni
+ * {@code CatalogSnapshotPort} ni ningun repositorio: esta clase elige el
+ * momento y delega la decision.
  *
- * <p><b>Que cuenta como "base vacia".</b> El {@code Optional} vacio de
- * {@code CatalogVersionRepository.findCurrent()} (#9), ni mas ni menos. No
- * se mira si hay categorias o profesionales: la version aplicada es el
- * unico dato que dice si la copia local es confiable, y esa es exactamente
- * la distincion que el puerto documenta entre "no tengo ninguna version" y
- * "tengo la version 0". Si hay version, no se pide nada: mantener la copia
- * al dia a partir de ahi es trabajo de la sincronizacion incremental (#25)
- * y de la reconciliacion periodica (#27), no del arranque.
+ * <p><b>Reconcilia siempre, no solo con la base vacia.</b> Hasta #26 este
+ * runner miraba si habia version local y, si la habia, no hacia nada. Eso
+ * dejaba un agujero: un servicio que estuvo apagado un rato vuelve con una
+ * version local vieja y ninguna notificacion de Kafka que le avise del
+ * atraso —los avisos que se publicaron mientras estaba caido no se le
+ * reenvian—. §8 pide comportamiento correcto ante reinicios con operaciones
+ * pendientes, y §16 pide que la comparacion de versiones detecte el atraso.
+ * Asi que ahora el arranque compara y sincroniza lo que haga falta: la base
+ * vacia es un caso particular de esa comparacion, el que termina en
+ * {@code NO_LOCAL_VERSION}.
  *
  * <p><b>Por que no bloquea el arranque.</b> El trabajo se lanza en un hilo
  * aparte y {@link #run(ApplicationArguments)} vuelve enseguida. Traer el
@@ -127,36 +127,45 @@ public class InitialCatalogSyncRunner implements ApplicationRunner {
     }
 
     /**
-     * Mira la version local y, si no hay ninguna, pide el catalogo completo.
+     * Compara el estado local con el del origen y sincroniza lo que haga
+     * falta.
      *
      * <p>Visible para las pruebas, que la llaman directo: lo que hay que
-     * fijar es la decision y el manejo de la falla, no el hilo donde ocurren.
+     * fijar es la decision y el manejo de la falla, no el hilo donde
+     * ocurren.
+     *
+     * <p>La version local se lee solo para el log: la decision la toma
+     * {@code synchronize}, que la vuelve a leer. Leerla dos veces no es un
+     * problema —entre las dos lecturas nada la cambio, porque el arranque es
+     * el unico que sincroniza en ese momento— y tener el numero a mano hace
+     * que el log diga desde donde se partio.
      */
     void sincronizarSiHaceFalta() {
         Optional<CatalogVersion> aplicada = versiones.getCurrent();
-        if (aplicada.isPresent()) {
-            log.info(
-                    "Catalogo local en la version {}: el arranque no pide el snapshot",
-                    aplicada.get().getVersion());
-            return;
-        }
+        log.info(aplicada.isPresent()
+                        ? "Catalogo local en la version {}: se verifica si hay atraso"
+                        : "Sin catalogo local: se pide el catalogo completo a la catedra",
+                aplicada.map(CatalogVersion::getVersion).orElse(null));
 
-        log.info("Sin catalogo local: se pide el snapshot completo a la catedra");
         try {
-            SyncRun corrida = sincronizacion.runFullSync(SyncTrigger.STARTUP);
-            log.info(
-                    "Catalogo inicial aplicado en la version {} (corrida {})",
-                    corrida.getToVersion(),
-                    corrida.getId());
+            sincronizacion.synchronize(SyncTrigger.STARTUP)
+                    .ifPresentOrElse(
+                            corrida -> log.info(
+                                    "Arranque sincronizado: corrida {} ({}, {}) → version {}",
+                                    corrida.getId(), corrida.getMode(),
+                                    corrida.getDecisionReason(), corrida.getToVersion()),
+                            () -> log.info("El catalogo local ya estaba al dia"));
         } catch (RuntimeException falla) {
             // No se relanza a proposito: ver el javadoc de la clase. La
-            // corrida fallida ya quedo registrada por RunFullSyncUseCaseImpl,
-            // asi que aca no se pierde nada mas que el proceso.
+            // corrida fallida ya quedo registrada, asi que aca no se pierde
+            // nada mas que el proceso. Y el atraso que no se recupero ahora
+            // lo vuelve a intentar la reconciliacion periodica (#27).
             log.warn(
-                    "No se pudo traer el catalogo inicial. El servicio queda arriba sin"
-                            + " catalogo local: las busquedas no van a devolver resultados"
-                            + " hasta que una sincronizacion termine bien. El motivo quedo"
-                            + " en sync_run y sync_error.",
+                    "No se pudo sincronizar al arrancar. El servicio queda arriba con el"
+                            + " catalogo que tenga: si no tenia ninguno, las busquedas no"
+                            + " van a devolver resultados hasta que una sincronizacion"
+                            + " termine bien. El motivo quedo en sync_run y sync_error, y"
+                            + " el chequeo periodico va a reintentar.",
                     falla);
         }
     }

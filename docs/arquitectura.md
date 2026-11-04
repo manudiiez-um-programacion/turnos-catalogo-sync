@@ -83,6 +83,7 @@ Nombres exactos de cada integración, según §7, §14 y §15 de la referencia
 | Kafka de la cátedra | cátedra → este servicio | credenciales del grupo | topic `catedra.catalog.{groupId}`, evento `CatalogUpdated` (§15.3) |
 | REST propia, búsqueda | app KMP → este servicio | JWT de usuario (HS256, `JWT_USER_SECRET`) | `GET /api/professionals` |
 | REST propia, agenda | servicio de turnos → este servicio | JWT técnico interno (autoridad `SERVICE_TURNOS`) | `GET /api/internal/professionals/{professionalId}/agenda` |
+| REST propia, estado | servicio de turnos → este servicio | JWT técnico interno (autoridad `SERVICE_TURNOS`) | `GET /api/internal/sync/status` (§4.1: informar estado y errores) |
 | Kafka de turnos | ambas | credenciales del grupo | `alumnos.turnos.acciones.{groupId}` y `catedra.turnos.telefono.{groupId}`, **fuera de este repo** |
 
 ### Qué muestra el diagrama que no se ve en el código
@@ -143,14 +144,14 @@ flowchart LR
     subgraph adapIn["Adaptadores de entrada"]
         direction TB
         aweb["1 · API REST propia<br/>infrastructure/web"]
-        akafka["4 · Kafka<br/>infrastructure/messaging"]
+        akafka["4 · Kafka de la cátedra<br/>infrastructure/messaging"]
     end
 
     subgraph portIn["Puertos de entrada"]
         direction TB
         pbusqueda["SearchProfessionalsUseCase"]
         pagenda["GetCurrentAgendaUseCase"]
-        pcambios["aplicación de cambios<br/>incrementales"]
+        pcambios["HandleCatalogUpdatedUseCase"]
     end
 
     subgraph nucleo["Los 6 slices · domain + application"]
@@ -165,16 +166,16 @@ flowchart LR
 
     subgraph portOut["Puertos de salida"]
         direction TB
-        prepos["CategoryRepository<br/>ProfessionalRepository<br/>WeeklyScheduleRepository<br/>CatalogVersionRepository<br/>SyncRunRepository"]
+        prepos["CategoryRepository<br/>ProfessionalRepository<br/>WeeklyScheduleRepository<br/>CatalogVersionRepository<br/>SyncRunRepository<br/>ProcessedEventRepository"]
         prest["CatalogSnapshotPort<br/>TechnicalAuthPort<br/>IntegrationConfigPort"]
-        predis["CatalogVersionPort<br/>CatalogChangesPort"]
+        predis["PublishedCatalogPort<br/>CatalogChangesPort"]
     end
 
     subgraph adapOut["Adaptadores de salida"]
         direction TB
         ajpa["5 · Persistencia JPA<br/>infrastructure/persistence"]
         acliente["2 · Cliente REST de la cátedra<br/>infrastructure/client"]
-        aredis["3 · Redis<br/>infrastructure/cache"]
+        aredis["3 · Redis de la cátedra<br/>infrastructure/redis"]
     end
 
     subgraph salen["Afuera: a quien se llama"]
@@ -214,12 +215,10 @@ flowchart LR
 
     classDef propio fill:#e7f0ff,stroke:#1f6feb,stroke-width:2px,color:#0a2540
     classDef puerto fill:#ffffff,stroke:#1f6feb,stroke-width:2px,color:#0a2540
-    classDef pendiente fill:#fff8e1,stroke:#b8860b,stroke-width:2px,stroke-dasharray:5 4,color:#5d4037
     classDef externo fill:#eceff1,stroke:#78909c,stroke-width:1px,color:#263238
     classDef fuera fill:#eceff1,stroke:#78909c,stroke-width:1px,stroke-dasharray:5 4,color:#263238
-    class aweb,acliente,ajpa,professional,schedule,syncs,category,integration,shared propio
-    class pbusqueda,pagenda,prepos,prest puerto
-    class akafka,aredis,pcambios,predis pendiente
+    class aweb,akafka,acliente,ajpa,aredis,professional,schedule,syncs,category,integration,shared propio
+    class pbusqueda,pagenda,pcambios,prepos,prest,predis puerto
     class capi2,credis2,pg2,ckafka2 externo
     class kmp2,turnos2 fuera
     style adapIn fill:#f6faff,stroke:#1f6feb,color:#0a2540
@@ -231,12 +230,35 @@ flowchart LR
     style salen fill:#fafafa,stroke:#78909c,color:#263238
 ```
 
-Lo amarillo punteado —el adaptador de Kafka, el de Redis y sus puertos—
-**todavía no está implementado**: son los issues de M3. Está en el diagrama
-porque son dos de las cinco superficies externas previstas en el ADR 0001 y
-porque sus puertos condicionan el diseño del slice `sync`; esos nombres salen
-del ADR y pueden ajustarse al implementarlos. Todo lo demás del diagrama está
-en el código hoy.
+Las cinco superficies externas del ADR 0001 están implementadas: el diagrama
+describe el código de hoy, no un plan.
+
+El adaptador de Kafka es el único de entrada que no es HTTP y el único que no
+tiene un `@KafkaListener`. No puede tenerlo: la anotación necesita el topic y
+el consumer group al registrar los beans, y esos valores llegan en el objeto
+`integration` de la cátedra (§15.2). Resolverlos ahí obligaría a hablar con la
+cátedra durante el arranque del contexto, y el arranque no puede depender de la
+red privada (D6). Así que el contenedor de listeners se arma a mano y se
+arranca después, con reintentos: la misma decisión que tomaron la conexión a
+Redis y la sincronización de arranque.
+
+El adaptador de Redis sí existe desde #22, de solo lectura sobre
+`catedra:sync:*`: entrega las dos claves de versión, la metadata y el estado
+vigente de cada entidad por id (§14.2 a §14.4). El puerto quedó llamado
+`PublishedCatalogPort` y no `CatalogVersionPort`, como anticipaba el ADR: lo
+que se lee de ahí no es una versión sino el catálogo que la cátedra publicó, y
+`CatalogVersionPort` se confundiría con el repositorio de la versión local, que
+es otra cosa.
+
+Los cambios incrementales de una versión (§14.5) son un **puerto aparte**,
+`CatalogChangesPort`, desde #23. No es una separación decorativa: las claves
+del catálogo publicado no tienen TTL y siempre están, mientras que
+`catedra:sync:changes:{version}` vive dentro de la ventana de versiones
+retenida y la misma lectura que hoy funciona en una semana puede no tener la
+clave. Un solo puerto prometería dos garantías distintas y quien lo usara no
+sabría cuál de los dos `Optional.empty()` le tocó. Ese puerto devuelve los IDs
+afectados por colección, no las entidades: el estado vigente de cada ID se lee
+después de los hashes, por `PublishedCatalogPort`.
 
 `shared` aparece dentro del núcleo y sin ninguna flecha, y es correcto que así
 sea: no modela negocio ni tiene puertos. Es la seguridad, el manejo de errores
@@ -250,7 +272,7 @@ adaptador web sin que ningún slice dependa de ellos.
 | `category` | Categorías profesionales de la copia local. | `GetAllCategoriesUseCase`, `GetCategoryByIdUseCase` |
 | `professional` | Profesionales y la búsqueda con filtros por categoría, nombre, habilitado y disponibilidad. | `SearchProfessionalsUseCase`, `GetAllProfessionalsUseCase`, `GetProfessionalByIdUseCase` |
 | `schedule` | Horarios semanales, el criterio de disponibilidad y la agenda vigente. | `GetCurrentAgendaUseCase`, `GetSchedulesByProfessionalUseCase` |
-| `sync` | El proceso de sincronización: versión aplicada, snapshot, incremental, estado y errores. | `RunFullSyncUseCase`, `ApplyCatalogSnapshotUseCase`, `GetLocalCatalogVersionUseCase` |
+| `sync` | El proceso de sincronización: versión aplicada, snapshot, incremental, estado y errores. | `SynchronizeCatalogUseCase`, `RunFullSyncUseCase`, `ApplyCatalogSnapshotUseCase`, `ApplyIncrementalChangesUseCase`, `ApplyCatalogVersionUseCase`, `GetLocalCatalogVersionUseCase`, `HandleCatalogUpdatedUseCase` |
 | `integration` | La cuenta técnica ante la cátedra. Único slice que conoce esas credenciales. | `GetTechnicalTokenUseCase`, `GetIntegrationConfigUseCase`, `RefreshIntegrationConfigUseCase` |
 | `shared` | Transversales sin dueño de negocio: seguridad, `application/problem+json`, OpenAPI. | no tiene: no modela un caso de uso |
 
@@ -262,21 +284,33 @@ legítima viene de la sincronización.
 
 | # | Adaptador | Slices | Puertos que cruzan la frontera | Estado |
 | --- | --- | --- | --- | --- |
-| 1 | API REST propia (`infrastructure/web`) | `professional`, `schedule` | `SearchProfessionalsUseCase` (in), `GetCurrentAgendaUseCase` (in) | implementado |
+| 1 | API REST propia (`infrastructure/web`) | `professional`, `schedule`, `sync` | `SearchProfessionalsUseCase` (in), `GetCurrentAgendaUseCase` (in), `GetSyncStatusUseCase` (in) | implementado |
 | 2 | Cliente REST de la cátedra (`infrastructure/client`) | `sync`, `integration` | `CatalogSnapshotPort` (out), `TechnicalAuthPort` (out), `IntegrationConfigPort` (out) | implementado |
-| 3 | Redis (`infrastructure/cache`) | `sync` | `CatalogVersionPort` (out), `CatalogChangesPort` (out) | pendiente, M3 |
-| 4 | Kafka (`infrastructure/messaging`) | `sync` | el caso de uso de aplicación de cambios (in) | pendiente, M3 |
-| 5 | Persistencia JPA (`infrastructure/persistence`) | `category`, `professional`, `schedule`, `sync` | `CategoryRepository`, `ProfessionalRepository`, `WeeklyScheduleRepository`, `CatalogVersionRepository`, `SyncRunRepository` (todos out) | implementado |
+| 3 | Redis de la cátedra (`infrastructure/redis`) | `sync` | `PublishedCatalogPort` (out), `CatalogChangesPort` (out) | implementado |
+| 4 | Kafka de la cátedra (`infrastructure/messaging`) | `sync` | `HandleCatalogUpdatedUseCase` (in) | implementado |
+| 5 | Persistencia JPA (`infrastructure/persistence`) | `category`, `professional`, `schedule`, `sync` | `CategoryRepository`, `ProfessionalRepository`, `WeeklyScheduleRepository`, `CatalogVersionRepository`, `SyncRunRepository`, `ProcessedEventRepository` (todos out) | implementado |
 
-El adaptador de Kafka es el único de entrada que no es HTTP: no implementa un
-puerto de salida, invoca un caso de uso. Se cuenta entre los cinco porque es
-una de las cinco superficies externas del servicio.
+El adaptador de Kafka no implementa un puerto de salida: invoca un caso de uso,
+como el adaptador web. Lo único que hace con el mensaje es traducirlo y
+delegarlo, y después confirmar el offset —en ese orden, que es el que exige
+§16—. La deduplicación por `eventId` y la decisión de qué hacer con la versión
+nueva son del slice `sync`, no suyas.
 
-Hay dos componentes más en `infrastructure` que no son adaptadores de una
-superficie externa, sino disparadores internos que entran por los mismos
-puertos de entrada: `InitialCatalogSyncRunner`, que lanza la sincronización
-completa al arrancar con la base vacía (#14), y `CatalogSyncHealthIndicator`,
-que publica el estado de sincronización en `/actuator/health`.
+Hay más componentes en `infrastructure` que no son adaptadores de una
+superficie externa: `InitialCatalogSyncRunner`, que lanza la sincronización
+completa al arrancar con la base vacía (#14); `CatalogReconciliationJob`, que
+compara versiones cada tanto para recuperar una notificación perdida (#27);
+`CatalogSyncHealthIndicator`, que publica si la copia local es servible en
+`/actuator/health`; `SyncMetrics`, que lleva los contadores de
+`/actuator/metrics` (#28); y los dos trabajos de retención, que acotan el
+crecimiento de `processed_event` y de `sync_run`.
+
+`SyncMetrics` **no implementa un puerto** y es deliberado: ninguna decisión del
+servicio depende de esos números, así que no hay nada que la aplicación
+necesite de afuera. Los contadores se incrementan en el adaptador de
+persistencia del historial, que es el único lugar por donde pasan las tres
+transiciones de una corrida, y en el adaptador de Kafka, que es donde llega la
+notificación.
 
 ## 3. Cómo se hablan los slices entre sí
 

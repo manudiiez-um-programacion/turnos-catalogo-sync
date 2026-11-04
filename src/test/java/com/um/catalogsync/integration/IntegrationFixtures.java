@@ -49,6 +49,63 @@ public final class IntegrationFixtures {
      * solo se entrega cuando la cuenta esta habilitada.
      */
     public static IntegrationConfig conEstado(ProvisioningStatus estado) {
+        return base(estado).build();
+    }
+
+    /**
+     * La misma configuracion habilitada, pero apuntando a un Redis concreto.
+     *
+     * <p>La usan las pruebas del adaptador de Redis: el host, el puerto, el
+     * usuario y la clave son los del contenedor que levanta la prueba, que es
+     * exactamente de donde los toma el servicio en produccion —del objeto
+     * {@code integration}, no de la configuracion (§14.1)—.
+     */
+    public static IntegrationConfig conRedisEn(
+            String host, int puerto, String usuario, Secret clave) {
+        return base(ProvisioningStatus.PROVISIONED)
+                .redisHost(host)
+                .redisPort(puerto)
+                .redisUsername(usuario)
+                .redisPassword(clave)
+                .build();
+    }
+
+    /**
+     * La misma configuracion habilitada, pero apuntando a un Kafka concreto.
+     *
+     * <p>La usa la prueba del consumidor, por el mismo motivo que
+     * {@link #conRedisEn}: el bootstrap, el topic y el consumer group son
+     * los del contenedor que levanta la prueba, que es exactamente de donde
+     * los toma el servicio en produccion —del objeto {@code integration},
+     * no de la configuracion (§15.2)—.
+     *
+     * <p>El consumer group se pide aparte porque hay pruebas que necesitan
+     * dos: uno que ya confirmo offsets y otro nuevo que arranca desde el
+     * principio del topic.
+     */
+    public static IntegrationConfig conKafkaEn(
+            String bootstrapServers, String topic, String consumerGroupId) {
+        return base(ProvisioningStatus.PROVISIONED)
+                .kafkaBootstrapServers(bootstrapServers)
+                .kafkaCatalogTopic(topic)
+                .kafkaConsumerGroupId(consumerGroupId)
+                .build();
+    }
+
+    /**
+     * El builder de la configuracion habilitada, sin construirla.
+     *
+     * <p>Lo necesita la prueba que corre los <b>tres</b> contenedores a la vez
+     * ({@code SyncRecoveryEndToEndTest}): {@link #conRedisEn} y
+     * {@link #conKafkaEn} devuelven cada uno una configuracion terminada, asi
+     * que no se pueden combinar. Un tercer metodo con los siete parametros de
+     * las dos integraciones seria peor que exponer el builder.
+     */
+    public static IntegrationConfig.IntegrationConfigBuilder builderProvisionado() {
+        return base(ProvisioningStatus.PROVISIONED);
+    }
+
+    private static IntegrationConfig.IntegrationConfigBuilder base(ProvisioningStatus estado) {
         return IntegrationConfig.builder()
                 .groupId(GROUP_ID)
                 .redisHost("redis.catedra.internal")
@@ -64,8 +121,7 @@ public final class IntegrationFixtures {
                 .kafkaCatalogTopic("catedra.catalog." + GROUP_ID)
                 .kafkaAppointmentActionsTopic("alumnos.turnos.acciones." + GROUP_ID)
                 .kafkaAppointmentPhoneTopic("catedra.turnos.telefono." + GROUP_ID)
-                .provisioningStatus(estado)
-                .build();
+                .provisioningStatus(estado);
     }
 
     public static TechnicalSession sesion() {

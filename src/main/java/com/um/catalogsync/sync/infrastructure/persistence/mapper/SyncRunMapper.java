@@ -1,5 +1,6 @@
 package com.um.catalogsync.sync.infrastructure.persistence.mapper;
 
+import com.um.catalogsync.sync.domain.model.SyncDecisionReason;
 import com.um.catalogsync.sync.domain.model.SyncMode;
 import com.um.catalogsync.sync.domain.model.SyncRun;
 import com.um.catalogsync.sync.domain.model.SyncStatus;
@@ -38,6 +39,8 @@ public class SyncRunMapper {
                 .triggeredBy(convertir(entity.getTriggeredBy(), SyncTrigger::valueOf,
                         "triggered_by"))
                 .status(convertir(entity.getStatus(), SyncStatus::valueOf, "status"))
+                .decisionReason(convertir(entity.getDecisionReason(),
+                        SyncDecisionReason::valueOf, "decision_reason"))
                 .fromVersion(entity.getFromVersion())
                 .toVersion(entity.getToVersion())
                 .startedAt(entity.getStartedAt())
@@ -54,6 +57,7 @@ public class SyncRunMapper {
                 .mode(nombreDe(run.getMode()))
                 .triggeredBy(nombreDe(run.getTriggeredBy()))
                 .status(nombreDe(run.getStatus()))
+                .decisionReason(nombreDe(run.getDecisionReason()))
                 .fromVersion(run.getFromVersion())
                 .toVersion(run.getToVersion())
                 .startedAt(run.getStartedAt())

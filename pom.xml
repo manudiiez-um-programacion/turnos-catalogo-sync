@@ -141,6 +141,45 @@
             <artifactId>flyway-database-postgresql</artifactId>
         </dependency>
 
+        <!-- Cliente de Redis para leer el catalogo publicado por la catedra
+             (§14). Va `lettuce-core` suelto y NO `spring-boot-starter-data-redis`
+             a proposito: el starter autoconfigura una conexion a partir de
+             `spring.data.redis.*`, y los datos de conexion de este proyecto no
+             estan en la configuracion —llegan en tiempo de ejecucion en el
+             objeto `integration` de la catedra (§14.1)—. Con el starter
+             habria un connection factory apuntando a localhost que nadie usa
+             y un health indicator que lo reportaria caido. Tampoco hace falta
+             `RedisTemplate`: lo que se lee son strings y hashes de strings,
+             que es exactamente la API sincronica de Lettuce.
+
+             La version la administra el parent de Spring Boot. -->
+        <dependency>
+            <groupId>io.lettuce</groupId>
+            <artifactId>lettuce-core</artifactId>
+        </dependency>
+
+        <!-- Consumo de CatalogUpdated del topic de la catedra (§15).
+
+             Va `spring-kafka` y no un cliente crudo: lo que aporta sobre
+             `kafka-clients` es el contenedor de listeners con confirmacion
+             manual de offset, que es exactamente el requisito del contrato
+             —commitear despues de persistir (§16)— y lo que seria mas facil
+             de implementar mal a mano.
+
+             Lo que NO se usa es la autoconfiguracion por
+             `spring.kafka.*`: el bootstrap, el consumer group y el topic
+             llegan en tiempo de ejecucion en el objeto `integration` (§15.2),
+             igual que los datos de Redis. Por eso el contenedor se arma a
+             mano y se arranca tarde, y por eso la propiedad
+             `spring.kafka.listener.auto-startup` no entra en juego: no hay
+             ningun @KafkaListener anotado.
+
+             La version la administra el parent de Spring Boot. -->
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
@@ -171,6 +210,22 @@
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>testcontainers-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Kafka real y descartable para las pruebas del consumidor.
+
+             El broker de la catedra tampoco esta en internet (D6) y en CI no
+             existe. Lo que se prueba acá no se puede probar con un doble en
+             memoria: que el offset no se confirme hasta despues de
+             persistir, y que un mensaje reentregado se absorba por
+             deduplicacion (§18.1). Las dos cosas son del protocolo, no del
+             codigo.
+
+             Se usa el contenedor de Apache Kafka con KRaft, sin ZooKeeper. -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-kafka</artifactId>
             <scope>test</scope>
         </dependency>
 

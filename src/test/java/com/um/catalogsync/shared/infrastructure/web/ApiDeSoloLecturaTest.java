@@ -45,8 +45,9 @@ class ApiDeSoloLecturaTest extends AbstractPostgresIntegrationTest {
      * de Actuator. Se revisan los dos a proposito —es un mapa y no un bean
      * unico— porque un endpoint de Actuator que escriba, como
      * {@code /actuator/shutdown}, seria tambien una escritura en esta API. Hoy
-     * solo se exponen {@code health} e {@code info}, y esta prueba falla si eso
-     * cambia sin que nadie lo note.
+     * solo se exponen {@code health}, {@code info} y {@code metrics} —los tres
+     * de solo lectura—, y esta prueba falla si eso cambia sin que nadie lo
+     * note.
      */
     /**
      * La unica ruta que puede no restringir el metodo.

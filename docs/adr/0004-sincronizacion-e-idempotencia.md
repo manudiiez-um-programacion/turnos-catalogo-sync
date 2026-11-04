@@ -308,6 +308,8 @@ la fila queda obviamente desactualizada. Formato `Clase#metodo`.
 | Un id ausente del hash se aplica como baja; la baja lógica no | `ApplyIncrementalChangesUseCaseImplTest#elIdAusenteEsUnaBaja`, `#laBajaLogicaNoEsUnaBaja`, `IncrementalSyncIntegrationTest#elIdAusenteSeBorra` |
 | El orden por FK permite crear una categoría y su profesional en la misma versión | `IncrementalSyncIntegrationTest#laCategoriaYSuProfesionalEnLaMismaVersion` |
 | Reprocesar una versión ya aplicada no cambia el resultado | `IncrementalSyncIntegrationTest#reprocesarNoCambiaNada` |
+| Una notificación con dos versiones pendientes deja la copia local en la última | `SyncRecoveryEndToEndTest#dosVersionesPendientesDejanLaLocalEnLaUltima` |
+| El recorrido no se saltea una versión disponible más adelante en el rango | `SyncRecoveryEndToEndTest#noSeSalteaLaVersionQueFalta` |
 
 ### La idempotencia y el offset
 
@@ -326,6 +328,10 @@ la fila queda obviamente desactualizada. Formato `Clase#metodo`.
 | El offset confirmado sobrevive a un consumidor nuevo del mismo grupo | `CatalogUpdatedConsumerIntegrationTest#elOffsetConfirmadoSobrevive` |
 | Un grupo nuevo relee el topic entero y el estado final no cambia | `CatalogUpdatedConsumerIntegrationTest#relecturaCompletaSinEfectos` |
 | Si la sincronización falla, el evento queda procesado igual | `HandleCatalogUpdatedUseCaseImplTest#laFallaDeSincronizacionNoSePropaga` |
+| El mismo mensaje dos veces **en el topic** no duplica efectos sobre el catálogo | `SyncRecoveryEndToEndTest#elDuplicadoEnElTopicNoDuplicaEfectos` |
+| Dos eventos distintos de la misma versión no la aplican dos veces | `SyncRecoveryEndToEndTest#dosEventosDeLaMismaVersion` |
+| **Caída entre persistir y confirmar el offset**: la reentrega de Kafka no duplica nada | `SyncRecoveryEndToEndTest#laCaidaEntrePersistirYConfirmarNoDuplicaEfectos` |
+| Un grupo nuevo relee el topic entero y el estado del catálogo no cambia | `SyncRecoveryEndToEndTest#laRelecturaCompletaNoCambiaElEstado` |
 
 ### La discontinuidad y la recuperación
 
@@ -342,6 +348,9 @@ la fila queda obviamente desactualizada. Formato `Clase#metodo`.
 | Fuera de la ventana, el chequeo reconstruye con snapshot | `ReconciliationIntegrationTest#fueraDeLaVentanaReconstruye` |
 | Si Redis no responde, el chequeo no revienta | `ReconciliationIntegrationTest#siRedisNoRespondeNoRevienta` |
 | Solo una sincronización a la vez, y el lock se libera ante una falla | `SynchronizeCatalogUseCaseImplTest#unaSolaALaVez`, `#elLockSeLiberaAnteUnaFalla` |
+| Fuera de la ventana: se pide el snapshot por REST y no se intenta el incremental | `SyncRecoveryEndToEndTest#fueraDeLaVentanaPideElSnapshot` |
+| Un origen que publica algo que no cumple §14.3 lleva a reconstruir | `SyncRecoveryEndToEndTest#siElOrigenNoSeVerificaReconstruye` |
+| **Reinicio con una sincronización a medias**: se cierra el atraso y el historial no se toca | `SyncRecoveryEndToEndTest#elReinicioRecuperaElAtraso` |
 
 ### El estado informado
 
@@ -351,11 +360,14 @@ la fila queda obviamente desactualizada. Formato `Clase#metodo`.
 | El reporte responde incluso sin catálogo o con la cátedra caída | `SyncStatusApiIntegrationTest#sinCatalogoAplicado`, `#conLaCatedraCaida` |
 | Los duplicados quedan contados en `/actuator/metrics` | `SyncMetricsTest#cuentaLosDuplicados`, `CatalogUpdatedListenerTest#elDuplicadoConfirma` |
 
-> **Lo que todavía no tiene prueba propia** y es trabajo del issue #30: la
-> caída entre persistir y confirmar el offset ejercida de punta a punta con los
-> tres contenedores a la vez, y el reinicio con una sincronización a medias. Las
-> piezas están probadas por separado —el rollback, la deduplicación, la
-> reentrega— pero no el escenario completo.
+> **Las tres integraciones a la vez.** `SyncRecoveryEndToEndTest` (issue #30)
+> es la única prueba donde PostgreSQL, Redis, Kafka y la cátedra REST
+> participan juntos, y por eso es la que cubre los dos escenarios que ninguna
+> pieza aislada puede demostrar: la caída entre persistir y confirmar el offset
+> —procesando con el listener de producción sin confirmar, y dejando que Kafka
+> reentregue de verdad al mismo consumer group— y el reinicio con una corrida
+> que quedó abierta. Para correrla sola:
+> `./mvnw test -Dtest=SyncRecoveryEndToEndTest`.
 
 ## Consecuencias
 

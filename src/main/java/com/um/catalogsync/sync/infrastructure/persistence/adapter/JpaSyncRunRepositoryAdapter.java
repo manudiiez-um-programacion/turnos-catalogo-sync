@@ -18,6 +18,7 @@ import com.um.catalogsync.sync.infrastructure.persistence.repository.JpaSyncRunR
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -71,7 +72,8 @@ import org.springframework.transaction.annotation.Transactional;
  * ninguna decision— y no se arregla con un {@code TransactionSynchronization}
  * que agregaria mas maquinaria que la que vale el problema.
  *
- * <p>Nunca devuelve una entidad JPA: todo sale mapeado a {@link SyncRun}.
+ * <p>Nunca devuelve una entidad JPA: todo sale mapeado a {@link SyncRun}, y
+ * nunca devuelve {@code null}: ver {@link #aDominio(SyncRunEntity)}.
  */
 @Component
 @RequiredArgsConstructor
@@ -98,7 +100,7 @@ public class JpaSyncRunRepositoryAdapter implements SyncRunRepository {
                 // permite expresar.
                 .startedAt(ahora())
                 .build();
-        return mapper.toDomain(runs.save(nueva));
+        return aDominio(runs.save(nueva));
     }
 
     @Override
@@ -109,7 +111,7 @@ public class JpaSyncRunRepositoryAdapter implements SyncRunRepository {
         corrida.setToVersion(toVersion);
         corrida.setFinishedAt(ahora());
 
-        SyncRun cerrada = mapper.toDomain(runs.save(corrida));
+        SyncRun cerrada = aDominio(runs.save(corrida));
         metricas.corridaTerminada(cerrada);
         return cerrada;
     }
@@ -134,7 +136,7 @@ public class JpaSyncRunRepositoryAdapter implements SyncRunRepository {
         corrida.setStatus(SyncStatus.FAILED.name());
         corrida.setToVersion(null);
         corrida.setFinishedAt(cuando);
-        SyncRun cerrada = mapper.toDomain(runs.save(corrida));
+        SyncRun cerrada = aDominio(runs.save(corrida));
 
         SyncError error = errorMapper.toDomain(errors.save(SyncErrorEntity.builder()
                 .syncRunId(runId)
@@ -151,7 +153,7 @@ public class JpaSyncRunRepositoryAdapter implements SyncRunRepository {
     @Override
     @Transactional(propagation = Propagation.SUPPORTS, readOnly = true)
     public Optional<SyncRun> findLast() {
-        return runs.findFirstByOrderByStartedAtDescIdDesc().map(mapper::toDomain);
+        return runs.findFirstByOrderByStartedAtDescIdDesc().map(this::aDominio);
     }
 
     /**
@@ -188,6 +190,33 @@ public class JpaSyncRunRepositoryAdapter implements SyncRunRepository {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public int purgeRunsFinishedBefore(Instant limite) {
         return runs.purgarTerminadasAntesDe(limite);
+    }
+
+    /**
+     * Mapea la fila a dominio y <b>garantiza que no sale un nulo</b>.
+     *
+     * <p>Hace falta por una razon concreta y vale escribirla, porque la linea
+     * parece de mas. {@code SyncRunMapper.toDomain} devuelve {@code null} si
+     * recibe {@code null} —es la convencion de todos los mappers del proyecto
+     * y tiene su prueba—, y acá nunca recibe {@code null}: las filas vienen de
+     * {@code save}, que no devuelve nulo, y de {@code exigir}, que falla
+     * antes. Pero el analisis estatico no puede saberlo y sigue ese camino
+     * hasta el final, asi que concluye que {@link #start} puede devolver nulo
+     * y marca como posible {@code NullPointerException} cada
+     * {@code corrida.getId()} de los casos de uso que la llaman.
+     *
+     * <p>Se arregla acá y no en el mapper porque <b>este</b> es el lugar que
+     * promete un {@link SyncRun} no nulo: el puerto declara que las tres
+     * transiciones devuelven la corrida, no un {@link Optional}. Cambiar el
+     * mapper obligaria a tocar una convencion que comparten todos los slices
+     * para resolver un problema de un solo adaptador.
+     *
+     * @throws NullPointerException si el mapeo devolviera nulo, que solo
+     *     puede venir de un cambio en el mapper que rompa su contrato
+     */
+    private SyncRun aDominio(SyncRunEntity entity) {
+        return Objects.requireNonNull(mapper.toDomain(entity),
+                "El mapeo de una corrida de sincronizacion no puede devolver null");
     }
 
     /**

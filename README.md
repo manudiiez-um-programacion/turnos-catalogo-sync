@@ -941,6 +941,7 @@ ninguna `@Entity` JPA ni DTO web puede aparecer en una firma de `domain` o
 - [`docs/catedra/PROJECT_STATEMENT-v1.md`](docs/catedra/PROJECT_STATEMENT-v1.md) — enunciado de la cátedra.
 - [`docs/catedra/INTEGRATION_REFERENCE-v2.md`](docs/catedra/INTEGRATION_REFERENCE-v2.md) — contratos externos (REST, Redis, Kafka). Es la fuente de verdad: no se inventan campos, endpoints ni claves.
 - [`docs/arquitectura.md`](docs/arquitectura.md) — los diagramas de arquitectura: el sistema completo (app KMP, los dos servicios, sus bases y las integraciones con la cátedra) y este servicio por dentro.
+- [`docs/sincronizacion.md`](docs/sincronizacion.md) — cómo se sincroniza el catálogo: completa, incremental, idempotencia y recuperación ante mensajes duplicados, perdidos o fuera de orden.
 - [`docs/contratos/catalogo-turnos.md`](docs/contratos/catalogo-turnos.md) — el contrato REST con el servicio de turnos: operaciones, DTOs, autenticación, errores, consistencia y versionado.
 - [`docs/contratos/openapi.yaml`](docs/contratos/openapi.yaml) — el mismo contrato en OpenAPI, generado por el servicio y verificado por una prueba.
 - [`docs/adr/`](docs/adr/) — decisiones de arquitectura, una por archivo, con su índice.

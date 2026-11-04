@@ -359,5 +359,6 @@ flowchart LR
 - Referencia de integración [`docs/catedra/INTEGRATION_REFERENCE-v2.md`](catedra/INTEGRATION_REFERENCE-v2.md): §7, §14, §15.
 - [`docs/adr/0001-arquitectura-hexagonal.md`](adr/0001-arquitectura-hexagonal.md) — por qué esta arquitectura, la regla de dependencias y los desvíos.
 - [`docs/adr/0002-identidad-y-autenticacion-entre-servicios.md`](adr/0002-identidad-y-autenticacion-entre-servicios.md) — las tres identidades y sus secretos.
+- [`docs/seguridad.md`](seguridad.md) — autorizacion, validacion de entrada, secretos, CORS y cabeceras.
 - [`docs/contratos/catalogo-turnos.md`](contratos/catalogo-turnos.md) — el contrato REST con el servicio de turnos.
 - Issue #19.

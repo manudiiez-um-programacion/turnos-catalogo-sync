@@ -62,6 +62,9 @@ public class SyncMetrics {
     /** Notificaciones resueltas, por resultado. {@code DUPLICATE} es el descarte. */
     static final String EVENTOS = "catalog.sync.events";
 
+    /** Valor de etiqueta para un dato que deberia estar y no esta. */
+    static final String SIN_DATO = "UNKNOWN";
+
     private final MeterRegistry registro;
 
     /**
@@ -72,9 +75,9 @@ public class SyncMetrics {
     public void corridaTerminada(SyncRun run) {
         Counter.builder(CORRIDAS)
                 .description("Corridas de sincronizacion terminadas")
-                .tag("mode", run.getMode().name())
-                .tag("trigger", run.getTriggeredBy().name())
-                .tag("status", run.getStatus().name())
+                .tag("mode", etiqueta(run.getMode()))
+                .tag("trigger", etiqueta(run.getTriggeredBy()))
+                .tag("status", etiqueta(run.getStatus()))
                 .register(registro)
                 .increment();
     }
@@ -93,7 +96,7 @@ public class SyncMetrics {
     public void corridaFallida(SyncError error) {
         Counter.builder(ERRORES)
                 .description("Corridas de sincronizacion fallidas, por codigo de error")
-                .tag("code", error.getCode().name())
+                .tag("code", etiqueta(error.getCode()))
                 .register(registro)
                 .increment();
     }
@@ -106,8 +109,28 @@ public class SyncMetrics {
     public void notificacionResuelta(CatalogUpdatedOutcome outcome) {
         Counter.builder(EVENTOS)
                 .description("Notificaciones CatalogUpdated resueltas, por resultado")
-                .tag("outcome", outcome.name())
+                .tag("outcome", etiqueta(outcome))
                 .register(registro)
                 .increment();
+    }
+
+    /**
+     * El nombre del valor, o {@value #SIN_DATO} si viniera nulo.
+     *
+     * <p><b>No deberia pasar nunca:</b> las tres columnas de {@code sync_run}
+     * que se etiquetan son NOT NULL con CHECK, y el puerto del historial no
+     * permite expresar una corrida sin modo, disparador o estado. El nulo solo
+     * puede venir de una fila escrita por fuera de la aplicacion.
+     *
+     * <p><b>Y aun asi no se deja explotar</b>, que es la decision de este
+     * metodo. Estos contadores se incrementan <i>dentro</i> de la transaccion
+     * que registra la corrida, asi que un {@code NullPointerException} acá no
+     * perderia una metrica: perderia el registro del intento, que es
+     * justamente lo que el reporte de estado tiene para informar. Una medicion
+     * no puede ser el motivo de que falle lo que mide, asi que ante un valor
+     * imposible el contador lo etiqueta como desconocido y sigue.
+     */
+    private static String etiqueta(Enum<?> valor) {
+        return valor == null ? SIN_DATO : valor.name();
     }
 }

@@ -93,6 +93,24 @@ class SyncMetricsTest {
         assertThat(registro.get("catalog.sync.runs").counter().count()).isEqualTo(2);
     }
 
+    @Test
+    @DisplayName("Un valor que no deberia faltar se etiqueta, no rompe la escritura")
+    void elValorImposibleNoRompe() {
+        // Los contadores se incrementan dentro de la transaccion que registra
+        // la corrida: un NPE acá no perderia una metrica, perderia el
+        // registro del intento. Una medicion no puede ser el motivo de que
+        // falle lo que mide.
+        metricas.corridaTerminada(SyncRun.builder().id(1L).build());
+
+        assertThat(registro.get("catalog.sync.runs")
+                        .tag("mode", SyncMetrics.SIN_DATO)
+                        .tag("trigger", SyncMetrics.SIN_DATO)
+                        .tag("status", SyncMetrics.SIN_DATO)
+                        .counter()
+                        .count())
+                .isEqualTo(1);
+    }
+
     private double eventos(String outcome) {
         return registro.get("catalog.sync.events").tag("outcome", outcome).counter().count();
     }

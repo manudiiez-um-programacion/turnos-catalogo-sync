@@ -158,6 +158,85 @@ réplica del catálogo para búsquedas o reservas nuevas. El rol de base
 la prohibición no depende solo de la disciplina: no hay credencial con la que
 turnos pueda leer estas tablas.
 
+### El estado de sincronización: qué tan fresca está la copia local
+
+```
+GET /api/internal/sync/status
+Authorization: Bearer <jwt-tecnico-interno>
+```
+
+Es la última responsabilidad del servicio en §4.1: informar el estado y los
+errores de sincronización, sin tener que leer un log ni entrar a la base.
+Devuelve la versión local aplicada, lo que se sabe del catálogo que publica la
+cátedra, el atraso en versiones, el último intento con su modo, motivo, inicio,
+fin y resultado, y los últimos errores con su código estable.
+
+**Responde 200 siempre**, incluso sin catálogo aplicado o con la cátedra
+inalcanzable: es justo entonces cuando más sirve. Los únicos errores posibles
+son los de autenticación.
+
+El campo `health` distingue cuatro situaciones, y la distinción es el punto:
+
+| `health` | Significa | Qué hacer |
+| --- | --- | --- |
+| `UP_TO_DATE` | la copia local está en la versión publicada | nada |
+| `BEHIND` | faltan versiones por aplicar | **nada: se recupera solo**, lo trae la próxima notificación o el chequeo periódico |
+| `REBUILDING` | hay una sincronización en curso | esperar |
+| `DEGRADED` | no se pudo verificar el origen, o el último intento falló | **mirar**: no se arregla esperando |
+
+`BEHIND` y `DEGRADED` son el par que importa. En los dos la copia local no está
+al día, y piden reacciones opuestas: uno se resuelve sin intervención y el otro
+no se resuelve nunca sin ella.
+
+```bash
+curl -s -H "Authorization: Bearer $JWT_INTERNO" \
+  http://localhost:8080/api/internal/sync/status | jq '{health, versionsBehind}'
+# { "health": "DEGRADED", "versionsBehind": null }
+```
+
+**Va detrás del JWT técnico interno y no del de usuario final**, aunque no sea
+un dato del catálogo: los códigos de error de integración y el historial de
+intentos describen cómo está hecho el servicio, no lo que la app muestra. Y el
+servicio de turnos sí es un consumidor legítimo, porque lee la agenda vigente de
+esta copia y preguntar cuán fresca está es parte de su diagnóstico.
+
+**No hay endpoint para disparar una sincronización.** Sería la única escritura
+de toda la API, y le daría a otro servicio la decisión de cuándo se reconstruye
+esta copia local. Quien necesite forzarla reinicia el servicio o espera el
+chequeo periódico.
+
+#### Las métricas equivalentes
+
+Lo mismo agregado está en `/actuator/metrics`, para graficarlo:
+
+| Métrica | Etiquetas | Para qué |
+| --- | --- | --- |
+| `catalog.sync.runs` | `mode`, `trigger`, `status` | cuántas sincronizaciones hubo y cómo salieron |
+| `catalog.sync.errors` | `code` | por qué fallan |
+| `catalog.sync.events` | `outcome` | notificaciones resueltas; `outcome=DUPLICATE` son las descartadas por duplicado |
+
+```bash
+curl -s -H "Authorization: Bearer $JWT_USUARIO" \
+  'http://localhost:8080/actuator/metrics/catalog.sync.events?tag=outcome:DUPLICATE'
+```
+
+Ese último contador es la **evidencia de idempotencia** que pide §11: un mensaje
+repetido que no repitió ningún efecto, contado. `/actuator/metrics` exige token
+igual que `/actuator/info`; lo único público es `/actuator/health`.
+
+#### Retención del historial
+
+`sync_run` suma una fila por intento y nada la achica sola: con el chequeo
+periódico corriendo cada pocos minutos, la tabla crece aunque nunca pase nada.
+Un trabajo periódico borra las corridas terminadas hace más de
+`SYNC_HISTORY_RETENTION` (90 días por defecto) y sus errores se van con ellas.
+La corrida más reciente nunca se borra: un servicio quieto informaría "ninguna
+sincronización" en lugar de "la última fue hace mucho", que es el dato que se
+está buscando.
+
+A diferencia de `PROCESSED_EVENTS_RETENTION`, esta ventana no afecta la
+correctitud: borrar de más solo deja menos para diagnosticar.
+
 ### La búsqueda de profesionales: lo que consume la app KMP
 
 ```

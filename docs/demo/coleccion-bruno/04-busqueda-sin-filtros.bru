@@ -1,0 +1,21 @@
+meta {
+  name: 04 - Busqueda sin filtros
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/professionals
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{jwtUsuario}}
+}
+
+docs {
+  Catalogo completo paginado, resuelto sobre la copia local (§6.2: nunca
+  consulta a la catedra). Sirve para levantar un professionalId y un
+  categoryId reales para los pasos siguientes.
+}

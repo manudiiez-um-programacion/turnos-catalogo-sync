@@ -11,8 +11,10 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -42,10 +44,21 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>El controlador depende del facade del slice y del mapper web, nunca de un
  * caso de uso ni de un puerto, como pide el ADR 0001.
+ *
+ * <p><b>{@code @Validated} en la clase (issue #32).</b> Sin esto, Spring MVC
+ * no valida las restricciones de un {@code @PathVariable} aunque tenga
+ * {@code @Positive}: las anotaciones de Bean Validation sobre un parametro
+ * suelto, a diferencia de un objeto con {@code @Valid}, solo se activan si el
+ * controlador completo esta marcado. {@code professionalId} negativo o cero
+ * no es un ataque, pero tampoco hay ningun profesional con ese id: que
+ * responda 400 en el borde, en vez de recorrer el caso de uso para terminar
+ * igual en 404, es la validacion de entrada que §9 exige "en cada limite de
+ * la aplicacion".
  */
 @RestController
 @RequestMapping("/api/internal/professionals")
 @RequiredArgsConstructor
+@Validated
 @Tag(
         name = "Agenda vigente (interno)",
         description =
@@ -103,6 +116,7 @@ public class CurrentAgendaController {
                             required = true,
                             schema = @Schema(type = "integer", format = "int64", example = "42"))
                     @PathVariable
+                    @Positive
                     Long professionalId) {
 
         return mapper.toResponse(horarios.getCurrentAgenda(professionalId));

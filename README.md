@@ -29,6 +29,22 @@ Disponibilidad de turnos, holds, reservas, los eventos Kafka de turnos
 (`alumnos.turnos.acciones.*`, `catedra.turnos.telefono.*`) y la aplicación KMP.
 Eso vive en los otros dos repositorios del proyecto.
 
+## Documentación obligatoria (§12)
+
+Ocho viñetas, ocho punteros. Cada uno apunta a donde esa exigencia está
+cubierta para este servicio; nada de esto se repite dos veces.
+
+| Viñeta de §12 | Dónde está |
+| --- | --- |
+| Requisitos, configuración y pasos reproducibles | Este README: [Requisitos](#requisitos) y [Puesta en marcha, paso a paso](#puesta-en-marcha-paso-a-paso) |
+| Diagrama de arquitectura (app, los dos servicios, bases, integraciones) | [`docs/arquitectura.md`](docs/arquitectura.md) |
+| Contratos entre los dos servicios (operaciones, DTO, autenticación, errores) | [`docs/contratos/catalogo-turnos.md`](docs/contratos/catalogo-turnos.md) |
+| Modelo de datos de este servicio y delimitación de su propiedad | [`docs/modelo-datos.md`](docs/modelo-datos.md) |
+| Estrategia de sincronización completa e incremental | [`docs/sincronizacion.md`](docs/sincronizacion.md) |
+| Procesamiento idempotente y recuperación ante duplicados, pérdidas y desorden | [`docs/recuperacion.md`](docs/recuperacion.md) |
+| Decisiones de seguridad, autenticación y autorización | [`docs/seguridad.md`](docs/seguridad.md) |
+| Instrucciones para ejecutar las pruebas automatizadas | Este README: [Verificación automática](#verificación-automática) |
+
 ## Primeros pasos después de clonar
 
 Este repositorio versiona sus propios git hooks en `.githooks/`. Git no los
@@ -342,6 +358,59 @@ lo que realmente responde.
 ./mvnw test -Dtest=ContratoOpenApiVersionadoTest -Dcontrato.exportar=true
 ```
 
+## Requisitos
+
+| | Para qué | Cómo se verifica |
+| --- | --- | --- |
+| **Docker y Docker Compose** | Levantar la app y PostgreSQL ([Docker Compose](#levantar-todo-con-docker-compose)), y Testcontainers en las pruebas de integración | `docker compose version` |
+| **Git** | Clonar y los hooks de `.githooks/` | `git --version` |
+| JDK 25 *(opcional)* | Correr `./mvnw` desde el host en vez de Docker | `java -version` → tiene que decir `25` |
+
+El camino con Docker **no necesita JDK ni Maven instalados**: la imagen los
+trae. JDK 25 solo hace falta para correr `./mvnw verify` o
+`./mvnw spring-boot:run` directo en el host (sección
+[Comandos](#comandos)); no hace falta instalar Maven aparte, el wrapper lo
+baja solo.
+
+## Puesta en marcha, paso a paso
+
+Pasos para clonar y dejar el servicio respondiendo, sin tocar la cátedra
+todavía (eso es la sección siguiente). Cada paso linkea a la explicación
+completa; esto es solo el orden.
+
+1. **Clonar y activar los hooks** —
+   [Primeros pasos después de clonar](#primeros-pasos-después-de-clonar):
+   `git clone`, después `git config core.hooksPath .githooks` (obligatorio
+   por clon, no lo activa Git solo).
+2. **Variables de entorno** — [Variables de entorno](#variables-de-entorno):
+   `cp .env.example .env`. Para este primer arranque alcanza con poner
+   cualquier valor en `DB_PASSWORD` y `POSTGRES_SUPERUSER_PASSWORD`; el resto
+   son de integraciones que se activan en el paso 4.
+3. **Levantar con Docker Compose** —
+   [Levantar todo con Docker Compose](#levantar-todo-con-docker-compose):
+   `docker compose up --build`. Al terminar, `curl http://localhost:8080/actuator/health`
+   responde `{"status":"UP"}`.
+4. **Migraciones** — no es un paso manual: Flyway corre
+   [las migraciones](#las-migraciones) al arrancar, sobre la base vacía que
+   creó el contenedor de PostgreSQL. Se puede confirmar leyendo
+   `flyway_schema_history` (comando en esa sección).
+5. **Primer arranque con snapshot** — necesita la cátedra, así que son dos
+   pasos encadenados:
+   1. [El alta de la cuenta técnica](#el-alta-de-la-cuenta-técnica-una-sola-vez-a-mano)
+      (una sola vez, con ZeroTier activo) y completar
+      `CATEDRA_TECHNICAL_USERNAME` / `CATEDRA_TECHNICAL_PASSWORD` en `.env`.
+   2. Reiniciar el servicio (`docker compose restart catalog-sync`): con la
+      base vacía, [el arranque pide el snapshot completo](#el-arranque-sincroniza-el-catálogo-si-la-base-está-vacía)
+      automáticamente. Se confirma con
+      `curl -s http://localhost:8080/actuator/health | jq '.components.catalogSync'`:
+      `"estado": "SIN_CATALOGO"` significa que todavía no llegó o falló;
+      cualquier otro estado significa que ya hay catálogo aplicado.
+
+   Sin red ZeroTier ni cuenta técnica, los pasos 1 a 4 igual dejan el
+   servicio arriba y respondiendo: queda en `SIN_CATALOGO` hasta que se
+   complete el paso 5. Es el comportamiento buscado (ver
+   [la tabla de arranque](#el-arranque-sincroniza-el-catálogo-si-la-base-está-vacía)).
+
 ## Stack
 
 | | |
@@ -352,12 +421,6 @@ lo que realmente responde.
 | Base de datos | PostgreSQL (servidor; §3 prohíbe H2 y embebidas) |
 | Documentación de la API | springdoc-openapi / Swagger UI |
 
-Requiere **JDK 25** instalado. No hace falta instalar Maven: el wrapper lo baja.
-
-```bash
-java -version   # tiene que decir 25
-```
-
 ## Comandos
 
 ```bash
@@ -367,11 +430,9 @@ java -version   # tiene que decir 25
 
 El servicio no arranca sin base de datos ni sin las variables de `.env`: la
 configuración no tiene valores por defecto para nada sensible, a propósito.
-Estos dos comandos son para trabajar desde el IDE; el camino recomendado
-para levantar el conjunto es
-[Docker Compose](#levantar-todo-con-docker-compose). El README reproducible
-completo llega en el issue
-[#34](https://github.com/manudiiez-um-programacion/turnos-catalogo-sync/issues/34).
+Estos dos comandos son para trabajar desde el IDE, con JDK 25 instalado
+(`java -version` tiene que decir `25`); el camino recomendado para levantar
+el conjunto es [Docker Compose](#levantar-todo-con-docker-compose).
 
 ### Perfiles
 
@@ -421,19 +482,49 @@ propiedad `excluded.test.groups` del `pom.xml`.
 
 Todo lo demás **sí** corre en CI, incluidas las suites que levantan
 PostgreSQL, Redis y Kafka con Testcontainers: el runner trae Docker, así que
-no hacen falta `services:` declarados ni configuración extra. La más grande es
-la de idempotencia y recuperación, que usa los tres a la vez y es la que §11
-pide poder mostrar:
+no hacen falta `services:` declarados ni configuración extra.
+
+**Requisito para correr las pruebas en local: Docker tiene que estar
+corriendo.** La mayoría de las clases de prueba son de integración y usan
+Testcontainers para levantar PostgreSQL, Redis y Kafka reales por prueba; con
+el demonio de Docker apagado fallan al arrancar el contenedor, no por un
+error del código (ver [Si algo falla](#si-algo-falla)).
 
 ```bash
-./mvnw test -Dtest=SyncRecoveryEndToEndTest
+./mvnw verify            # la suite completa: es lo que corre CI
 ```
 
-Cubre el mensaje duplicado, dos versiones pendientes aplicadas en orden, la
-discontinuidad de §18.2, la caída entre persistir y confirmar el offset, y el
-reinicio con una sincronización que quedó a medias. El detalle de cada
-escenario está en
+Para no esperar la suite completa, cada grupo se puede correr por separado
+con `-Dtest`. Los de sincronización, que son los más grandes porque levantan
+los tres Testcontainers a la vez:
+
+```bash
+./mvnw test -Dtest='SyncRecoveryEndToEndTest'       # idempotencia, orden y recuperacion
+./mvnw test -Dtest='FullSync*'                       # sincronizacion completa
+./mvnw test -Dtest='IncrementalSyncIntegrationTest'  # sincronizacion incremental
+./mvnw test -Dtest='ReconciliationIntegrationTest'   # reconciliacion periodica
+./mvnw test -Dtest='CatalogUpdatedConsumerIntegrationTest'  # consumo de Kafka
+```
+
+La más grande es `SyncRecoveryEndToEndTest`, que es la que §11 pide poder
+mostrar: cubre el mensaje duplicado, dos versiones pendientes aplicadas en
+orden, la discontinuidad de §18.2, la caída entre persistir y confirmar el
+offset, y el reinicio con una sincronización que quedó a medias. El detalle
+de cada escenario está en
 [`docs/sincronizacion.md`](docs/sincronizacion.md#11-cómo-se-prueba).
+
+Otros grupos útiles para correr aislados:
+
+```bash
+./mvnw test -Dtest='*ApiIntegrationTest'   # los tres endpoints HTTP, con JWT real
+./mvnw test -Dtest='ApiSecurityIntegrationTest'   # autorizacion y aislamiento (issue #33)
+./mvnw test -Dtest='ApiDeSoloLecturaTest'         # ninguna ruta acepta escritura
+./mvnw test -Dtest='SecretosNoSeFiltranTest'      # ningun secreto en logs ni respuestas
+```
+
+El resto de las clases (dominio, casos de uso, adaptadores con mocks) son
+pruebas unitarias sin Testcontainers: corren igual de rápido sueltas o en la
+suite completa.
 
 ### Análisis de calidad: SonarCloud
 
@@ -668,6 +759,9 @@ build no existe. De eso se encarga `./mvnw verify` en CI (issue
 | `password authentication failed for user "catalogo"` | Mismo caso: el volumen tiene el rol con la contraseña anterior. |
 | La app no alcanza la API, Redis o Kafka de la cátedra, pero desde el host sí | Solapamiento de subredes con `docker0`. Ver [El entorno de la cátedra](#el-entorno-de-la-cátedra-acceso-por-zerotier). |
 | `Migration checksum mismatch` o `Validate failed` al arrancar | Se editó una migración ya aplicada. Se revierte el archivo y el cambio va en una migración nueva; o `docker compose down -v` si la base es descartable. |
+| `Cannot connect to the Docker daemon` / `docker compose` no responde | Docker Desktop (o el demonio de Docker) está apagado. Iniciarlo y reintentar; en Testcontainers el mismo síntoma aparece al correr `./mvnw verify` en local. |
+| El servicio queda en `SIN_CATALOGO` y el log repite `IntegrationNotProvisionedException` o un `provisioningStatus` distinto de `PROVISIONED` | La cuenta técnica todavía no está aprobada por la cátedra (`PENDING`), falló (`FAILED`) o fue dada de baja (`REVOKED`). Ver [El arranque verifica la integración](#el-arranque-verifica-la-integración-y-falla-si-no-está-habilitada): con `PENDING` hay que esperar, con `FAILED`/`REVOKED` hay que crear otra cuenta técnica. |
+| El log repite timeouts o reintentos agotados contra Redis o Kafka de la cátedra, con la API respondiendo bien | Redis o Kafka de la cátedra inalcanzables puntualmente — igual de posible que la API, porque los tres cuelgan de la misma IP por ZeroTier. El servicio sigue sirviendo búsquedas sobre la copia local (issue #31); `GET /api/internal/sync/status` muestra `health: DEGRADED` y el código de error. Revisar la conexión ZeroTier y, si persiste, confirmar con el profesor que el servidor esté arriba. |
 
 ## El entorno de la cátedra: acceso por ZeroTier
 
@@ -927,9 +1021,38 @@ El enlace es relayado, no directo, y se nota:
 
 Consecuencias: los defaults de Spring no sirven tal cual, cualquier
 integración que haga una request por entidad es inviable, y el backoff tiene
-que partir de una base mayor a la de una LAN. El ajuste de timeouts y
-reintentos es el issue
-[#31](https://github.com/manudiiez-um-programacion/turnos-catalogo-sync/issues/31).
+que partir de una base mayor a la de una LAN. Los timeouts y los reintentos
+(issue [#31](https://github.com/manudiiez-um-programacion/turnos-catalogo-sync/issues/31))
+quedaron en `catedra.api`, `catedra.redis` y `catedra.kafka` del
+`application.yaml` — ver el ADR
+[0004](docs/adr/0004-sincronizacion-e-idempotencia.md#7-timeouts-y-reintentos)
+por los valores y por qué cada uno se reintenta o no.
+
+## Validación en una máquina limpia
+
+Issue [#34](https://github.com/manudiiez-um-programacion/turnos-catalogo-sync/issues/34)
+pide que alguien, sin más contexto que este README, lo siga en una máquina
+que no tenga nada de este proyecto instalado y llegue al servicio
+funcionando. Checklist para esa prueba:
+
+1. Clonar el repo en un directorio nuevo (sin copiar `.env` de otra parte).
+2. Seguir [Puesta en marcha, paso a paso](#puesta-en-marcha-paso-a-paso)
+   hasta el paso 3 (sin tocar la cátedra) y confirmar
+   `GET /actuator/health` → `{"status":"UP"}`.
+3. Correr `./mvnw verify` (necesita Docker arriba, por Testcontainers) y
+   confirmar que termina en `BUILD SUCCESS`.
+4. Si tiene acceso a ZeroTier, seguir el paso 5 y confirmar que
+   `sync_run` queda con una corrida en `SUCCESS`.
+5. Anotar cualquier paso que haya necesitado algo no escrito acá, y
+   corregir el README antes de cerrar el issue.
+
+| Quién lo probó | Fecha | Máquina / SO | Resultado |
+| --- | --- | --- | --- |
+| _(pendiente)_ | | | |
+
+Esta tabla se completa recién cuando alguien distinto de quien escribió el
+README lo haya corrido de punta a punta; hasta entonces el criterio de
+aceptación de #34 queda abierto.
 
 ## Estructura
 
@@ -961,6 +1084,7 @@ ninguna `@Entity` JPA ni DTO web puede aparecer en una firma de `domain` o
 - [`docs/contratos/catalogo-turnos.md`](docs/contratos/catalogo-turnos.md) — el contrato REST con el servicio de turnos: operaciones, DTOs, autenticación, errores, consistencia y versionado.
 - [`docs/contratos/openapi.yaml`](docs/contratos/openapi.yaml) — el mismo contrato en OpenAPI, generado por el servicio y verificado por una prueba.
 - [`docs/adr/`](docs/adr/) — decisiones de arquitectura, una por archivo, con su índice.
+- [`docs/demo/`](docs/demo/) — guion cronometrado y colección de requests (Bruno) para producir en vivo las evidencias de §11 que corresponden a este servicio, con el checklist cruzado §11/§12.
 - `CLAUDE.md` — contexto del repositorio y reglas no negociables.
 - `.claude/skills/` — flujo de git del proyecto y convenciones de arquitectura hexagonal.
 

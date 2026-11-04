@@ -238,6 +238,33 @@ class CurrentAgendaApiIntegrationTest extends AbstractPostgresIntegrationTest {
         }
     }
 
+    @Nested
+    @DisplayName("Validacion de entrada en el borde (#32)")
+    class ValidacionDeEntrada {
+
+        @Test
+        @DisplayName("professionalId cero: 400 VALIDATION_ERROR, no 503 ni 404")
+        void idCero() {
+            dadaLaVersionAplicada();
+
+            HttpResponse<String> respuesta = pedirAgenda(0L, TokensDePrueba.deServicioDeTurnos());
+
+            assertThat(respuesta.statusCode()).isEqualTo(400);
+            assertThat(problema(respuesta, "code")).isEqualTo("VALIDATION_ERROR");
+        }
+
+        @Test
+        @DisplayName("professionalId negativo: 400 VALIDATION_ERROR")
+        void idNegativo() {
+            dadaLaVersionAplicada();
+
+            HttpResponse<String> respuesta = pedirAgenda(-1L, TokensDePrueba.deServicioDeTurnos());
+
+            assertThat(respuesta.statusCode()).isEqualTo(400);
+            assertThat(problema(respuesta, "code")).isEqualTo("VALIDATION_ERROR");
+        }
+    }
+
     private void dadaUnaCopiaConUnProfesionalHabilitado() {
         dadaLaVersionAplicada();
         dadaLaCategoria();

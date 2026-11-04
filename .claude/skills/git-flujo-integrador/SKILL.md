@@ -243,6 +243,13 @@ gh issue develop 12 --base milestone/m1-infraestructura-base --name feat/m1-12-s
 
 Si `gh issue develop` no está disponible: `git switch -c feat/m1-12-sync-incremental`.
 
+**"Development" del PR, resuelto antes de que exista el PR.** `gh issue
+develop` deja la rama enlazada al issue (issue #91): cuando después se abra
+un PR desde esa misma rama, GitHub la asocia sola. No hace falta ningún paso
+aparte, salvo que la rama se haya creado a mano (`git switch -c`): en ese
+caso, vincularla manualmente desde la pestaña "Development" del issue antes
+de abrir el PR.
+
 ### 6.3 Trabajar
 
 Commits chicos con el formato de la sección 5 y `Refs #12`. Pushear la rama seguido (sirve de backup):
@@ -261,6 +268,10 @@ Cuando se cumplen los criterios de aceptación del issue. Mostrar al usuario el 
 gh pr create --base milestone/m1-infraestructura-base \
   --title "feat(sync): aplicar cambios incrementales en orden" \
   --body-file /tmp/pr.md
+# Copiar del issue al PR lo que la barra lateral necesita (issue #91):
+# mismo assignee, misma label de tipo, mismo milestone. "Development" ya
+# quedó resuelto por gh issue develop en 6.2.
+gh pr edit <numero-del-PR> --add-assignee @me --add-label feat --milestone "M1 - Infraestructura base"
 gh pr merge --merge --delete-branch
 ```
 
@@ -291,6 +302,9 @@ git fetch origin && git merge origin/develop     # resolver conflictos acá, nun
 git push
 gh issue list --milestone "M1 - Infraestructura base" --state all --json number,title
 gh pr create --base develop --title "M1 - Infraestructura base" --body-file /tmp/pr.md
+# Milestone de GitHub = el que se está integrando; assignee = quien lo arma.
+# Sin label de tipo: este PR mezcla los tipos de todos los issues que trae.
+gh pr edit <numero-del-PR> --add-assignee @me --milestone "M1 - Infraestructura base"
 ```
 
 Cuerpo del PR milestone → develop:
@@ -325,6 +339,9 @@ al usuario y espera confirmación.
 ```bash
 gh pr create --base testing --head develop --title "release: develop → testing (M1)" --body-file /tmp/pr.md
 gh pr create --base main --head testing --title "release: testing → main (M1)" --body-file /tmp/pr.md
+# Mismo criterio que en 6.5: milestone de GitHub = el que se promueve,
+# assignee = quien lo arma, sin label de tipo (issue #91).
+gh pr edit <numero-del-PR> --add-assignee @me --milestone "M1 - Infraestructura base"
 ```
 
 - Siempre **merge commit**, nunca squash ni rebase (si no, las ramas divergen y los próximos PRs dan conflictos).

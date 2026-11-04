@@ -9,6 +9,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -260,6 +261,78 @@ class ApiSecurityIntegrationTest extends AbstractPostgresIntegrationTest {
 
             assertThat(respuesta.statusCode()).isEqualTo(403);
             assertThat(respuesta.headers().firstValue("access-control-allow-origin")).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("Cabeceras de seguridad (#32)")
+    class CabecerasDeSeguridad {
+
+        @Test
+        @DisplayName("una respuesta real trae las cabeceras explicitas y las que Spring Security aplica por defecto")
+        void lasCabecerasEstanPresentes() throws Exception {
+            HttpResponse<String> respuesta = pedir(RUTA_DE_USUARIO, TokensDePrueba.deUsuario());
+
+            assertThat(respuesta.statusCode()).isEqualTo(200);
+            // Explicitas en SecurityConfig.cabecerasDeSeguridad(): no son el
+            // default de Spring Security, se agregaron para esta API de solo
+            // lectura.
+            assertThat(respuesta.headers().firstValue("x-frame-options")).hasValue("DENY");
+            assertThat(respuesta.headers().firstValue("content-security-policy"))
+                    .hasValue("default-src 'none'");
+            // El default de Spring Security que sigue activo sin que nadie lo
+            // desactive: la prueba deja escrito que efectivamente esta.
+            assertThat(respuesta.headers().firstValue("x-content-type-options")).hasValue("nosniff");
+        }
+
+        @Test
+        @DisplayName("tambien en un rechazo: las cabeceras no dependen de que el token sea valido")
+        void lasCabecerasEstanEnUnRechazo() throws Exception {
+            HttpResponse<String> respuesta = pedir(RUTA_DE_USUARIO, null);
+
+            assertThat(respuesta.statusCode()).isEqualTo(401);
+            assertThat(respuesta.headers().firstValue("x-frame-options")).hasValue("DENY");
+            assertThat(respuesta.headers().firstValue("content-security-policy"))
+                    .hasValue("default-src 'none'");
+        }
+    }
+
+    @Nested
+    @DisplayName("Los secretos de firma nunca aparecen en una respuesta real (#32)")
+    class SecretosEnRespuestasReales {
+
+        /**
+         * Los dos secretos propios de esta clase de seguridad.
+         *
+         * <p>{@code SecretosNoSeFiltranTest} ya cubre el JWT tecnico de la
+         * catedra y {@code redisPassword}, pero opera en memoria, sin
+         * levantar un servidor: nunca mira una respuesta HTTP real. Esta
+         * prueba cierra justamente eso para los dos secretos que vive esta
+         * clase —{@code JWT_USER_SECRET} y {@code JWT_INTERNAL_SECRET}—,
+         * contra el servidor real con el que habla el servicio de turnos.
+         */
+        private static final List<String> SECRETOS =
+                List.of(TokensDePrueba.SECRETO_USUARIO, TokensDePrueba.SECRETO_INTERNO);
+
+        @Test
+        @DisplayName("ni en un 401, ni en un 403, ni en una respuesta exitosa, ni en sus cabeceras")
+        void ningunaRespuestaFiltraLosSecretos() throws Exception {
+            List<HttpResponse<String>> respuestas = List.of(
+                    pedir(RUTA_DE_USUARIO, null),
+                    pedir(RUTA_DE_USUARIO, "jwt-tecnico-de-catedra-opaco"),
+                    pedir(RUTA_DE_USUARIO, TokensDePrueba.deUsuario()),
+                    pedir(RUTA_DE_USUARIO, TokensDePrueba.deServicioDeTurnos()),
+                    pedir(RUTA_INTERNA, null),
+                    pedir(RUTA_INTERNA, TokensDePrueba.deServicioDeTurnos()),
+                    pedir(RUTA_INTERNA, TokensDePrueba.deServicioSinAutoridad()));
+
+            for (HttpResponse<String> respuesta : respuestas) {
+                assertThat(respuesta.body())
+                        .as("cuerpo de %s", respuesta.request())
+                        .doesNotContain(SECRETOS);
+                String cabeceras = String.join("\n", respuesta.headers().map().toString());
+                assertThat(cabeceras).as("cabeceras de %s", respuesta.request()).doesNotContain(SECRETOS);
+            }
         }
     }
 

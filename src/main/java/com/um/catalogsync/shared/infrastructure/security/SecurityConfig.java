@@ -12,6 +12,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
@@ -233,10 +234,41 @@ public class SecurityConfig {
                 .anonymous(Customizer.withDefaults())
                 .sessionManagement(
                         sesion -> sesion.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .headers(cabecerasDeSeguridad())
                 .exceptionHandling(
                         errores ->
                                 errores.authenticationEntryPoint(entradaNoAutenticada)
                                         .accessDeniedHandler(accesoDenegado));
+    }
+
+    /**
+     * Las cabeceras de seguridad que pide §9, explicitas y no implicitas.
+     *
+     * <p>Spring Security ya aplica por defecto {@code X-Content-Type-Options},
+     * {@code Cache-Control} y HSTS condicional a HTTPS aunque no se llame a
+     * {@code .headers(...)}: no desactivarlas alcanzaria. Se llama de todas
+     * formas por dos de las tres cabeceras de abajo, que <b>no</b> son
+     * default, y para que las tres queden escritas en un solo lugar,
+     * verificables por {@code ApiSecurityIntegrationTest} y no dependientes de
+     * que nadie recuerde cual trae Spring Security de fabrica.
+     *
+     * <p><b>{@code frameOptions(deny)}.</b> Por defecto es
+     * {@code SAMEORIGIN}: alcanzaria para una API que nunca sirve HTML, pero
+     * {@code DENY} es mas estricto y no tiene costo —nada de esta API se
+     * sirve dentro de un {@code frame}—.
+     *
+     * <p><b>{@code Content-Security-Policy: default-src 'none'}.</b> No es
+     * default de Spring Security. Esta API es de solo lectura y solo
+     * devuelve {@code application/json} o {@code application/problem+json}:
+     * no carga scripts, estilos ni imagenes propias, asi que la politica mas
+     * restrictiva posible no rompe nada y cierra la puerta a que una
+     * respuesta reflejada se interprete alguna vez como HTML o script.
+     */
+    private Customizer<HeadersConfigurer<HttpSecurity>> cabecerasDeSeguridad() {
+        return cabeceras ->
+                cabeceras
+                        .frameOptions(frame -> frame.deny())
+                        .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'none'"));
     }
 
     /**

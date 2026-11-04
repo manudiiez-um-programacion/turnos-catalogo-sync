@@ -92,6 +92,19 @@ public final class IntegrationFixtures {
                 .build();
     }
 
+    /**
+     * El builder de la configuracion habilitada, sin construirla.
+     *
+     * <p>Lo necesita la prueba que corre los <b>tres</b> contenedores a la vez
+     * ({@code SyncRecoveryEndToEndTest}): {@link #conRedisEn} y
+     * {@link #conKafkaEn} devuelven cada uno una configuracion terminada, asi
+     * que no se pueden combinar. Un tercer metodo con los siete parametros de
+     * las dos integraciones seria peor que exponer el builder.
+     */
+    public static IntegrationConfig.IntegrationConfigBuilder builderProvisionado() {
+        return base(ProvisioningStatus.PROVISIONED);
+    }
+
     private static IntegrationConfig.IntegrationConfigBuilder base(ProvisioningStatus estado) {
         return IntegrationConfig.builder()
                 .groupId(GROUP_ID)

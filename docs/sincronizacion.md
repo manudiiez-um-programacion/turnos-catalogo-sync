@@ -393,11 +393,20 @@ marcadas con `@Tag("catedra")` y quedan fuera de `verify` y de CI.
 
 ```bash
 ./mvnw verify                                  # todo
+./mvnw test -Dtest='SyncRecoveryEndToEndTest'  # idempotencia, orden y recuperacion
 ./mvnw test -Dtest='FullSync*'                 # la completa
 ./mvnw test -Dtest='IncrementalSyncIntegrationTest'
 ./mvnw test -Dtest='ReconciliationIntegrationTest'
 ./mvnw test -Dtest='CatalogUpdatedConsumerIntegrationTest'
 ```
+
+La primera es la que §11 pide poder mostrar: es la única donde los tres
+transportes participan a la vez —PostgreSQL, Redis y Kafka por Testcontainers,
+y la cátedra REST por WireMock— y entre el mensaje que entra al topic y la fila
+que queda en la base no hay ningún doble. Cubre el duplicado de §18.1, las dos
+versiones pendientes aplicadas en orden, la discontinuidad de §18.2, la caída
+entre persistir y confirmar el offset, y el reinicio con una corrida que quedó
+abierta.
 
 La tabla que asocia **cada afirmación de este documento con la prueba que la
 respalda** está en el

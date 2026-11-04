@@ -419,6 +419,22 @@ Un job que depende de una red privada falla siempre y deja de informar sobre
 el código, así que esas pruebas quedan fuera a propósito. El mecanismo es la
 propiedad `excluded.test.groups` del `pom.xml`.
 
+Todo lo demás **sí** corre en CI, incluidas las suites que levantan
+PostgreSQL, Redis y Kafka con Testcontainers: el runner trae Docker, así que
+no hacen falta `services:` declarados ni configuración extra. La más grande es
+la de idempotencia y recuperación, que usa los tres a la vez y es la que §11
+pide poder mostrar:
+
+```bash
+./mvnw test -Dtest=SyncRecoveryEndToEndTest
+```
+
+Cubre el mensaje duplicado, dos versiones pendientes aplicadas en orden, la
+discontinuidad de §18.2, la caída entre persistir y confirmar el offset, y el
+reinicio con una sincronización que quedó a medias. El detalle de cada
+escenario está en
+[`docs/sincronizacion.md`](docs/sincronizacion.md#11-cómo-se-prueba).
+
 ### Análisis de calidad: SonarCloud
 
 El mismo job, después de que las pruebas pasan, manda el código a

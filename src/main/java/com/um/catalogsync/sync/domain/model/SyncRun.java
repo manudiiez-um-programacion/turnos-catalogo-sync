@@ -47,6 +47,18 @@ public class SyncRun {
     /** El "motivo" del enunciado: por que arranco esta corrida. */
     private SyncTrigger triggeredBy;
 
+    /**
+     * Por que se eligio este modo, o {@code null} en las corridas anteriores
+     * a la migracion V3.
+     *
+     * <p>Es lo que distingue las tres discontinuidades entre si: con
+     * {@code mode = FULL} se sabe que se reconstruyo, y con esto se sabe si
+     * fue porque la version local salio de la ventana retenida, porque
+     * faltaba una version intermedia o porque no se pudo verificar el estado
+     * del origen (§6.2, §18.2).
+     */
+    private SyncDecisionReason decisionReason;
+
     private SyncStatus status;
 
     /**

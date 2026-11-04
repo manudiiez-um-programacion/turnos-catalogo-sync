@@ -40,6 +40,33 @@ catedra:
     read-timeout: 2s
     verify-on-startup: false
 
+  # Redis de la catedra: timeouts cortos.
+  #
+  # En una prueba no hay un enlace ZeroTier que justifique esperar diez
+  # segundos, y una prueba que verifica un timeout tiene que terminar
+  # rapido. Los datos de conexion no estan aca ni en ningun yaml: llegan de
+  # integration (§14.1), y las pruebas del adaptador le pasan los del
+  # contenedor de Redis que levantan.
+  redis:
+    connect-timeout: 1s
+    command-timeout: 2s
+
+  # Consumo del topic de catalogo: apagado.
+  #
+  # Cada prueba de integracion levanta el contexto completo, y con esto
+  # encendido todas intentarian engancharse a un broker que no existe. La
+  # prueba del consumidor levanta su propio Kafka y arma el consumidor a
+  # mano, que es lo que le deja controlar cuando se consume.
+  #
+  # Los tiempos son cortos por el mismo motivo que los de Redis: una prueba
+  # que verifica un reintento tiene que terminar rapido.
+  kafka:
+    enabled: false
+    poll-timeout: 500ms
+    startup-retry-interval: 1s
+    retry-interval: 100ms
+    max-retries: 1
+
 # Sincronizacion al arrancar: apagada.
 #
 # Cada prueba de integracion levanta el contexto completo, y con esto
@@ -51,6 +78,37 @@ catedra:
 sync:
   startup:
     enabled: false
+
+  # Retencion de eventos procesados: ventana corta y purga que no corre sola.
+  #
+  # El intervalo es largo a proposito para que ninguna prueba se encuentre
+  # con una purga disparada por el planificador en medio de otra cosa. La
+  # prueba de la purga llama al trabajo a mano, que es la unica forma de
+  # verificar el borde de la ventana sin esperar.
+  processed-events:
+    retention: 1s
+    purge-interval: 1h
+
+  # Retencion del historial: ventana corta y purga que no corre sola.
+  #
+  # Por el mismo motivo que la de processed-events: el intervalo es largo para
+  # que ninguna prueba se encuentre con una purga disparada por el
+  # planificador en medio de otra cosa, y la prueba de la purga llama al
+  # trabajo a mano para poder verificar el borde de la ventana sin esperar.
+  history:
+    retention: 1s
+    purge-interval: 1h
+
+  # Reconciliacion periodica: apagada.
+  #
+  # Cada prueba de integracion levanta el contexto completo, y con esto
+  # encendido todas compararian versiones contra un Redis que no existe. La
+  # prueba de la reconciliacion llama al trabajo a mano, que es la unica
+  # forma de controlar cuando corre.
+  reconciliation:
+    enabled: false
+    interval: 1h
+    initial-delay: 1h
 
 # Seguridad: secretos fijos de prueba, no son credenciales de nada.
 #

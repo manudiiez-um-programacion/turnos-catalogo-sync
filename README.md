@@ -158,6 +158,85 @@ réplica del catálogo para búsquedas o reservas nuevas. El rol de base
 la prohibición no depende solo de la disciplina: no hay credencial con la que
 turnos pueda leer estas tablas.
 
+### El estado de sincronización: qué tan fresca está la copia local
+
+```
+GET /api/internal/sync/status
+Authorization: Bearer <jwt-tecnico-interno>
+```
+
+Es la última responsabilidad del servicio en §4.1: informar el estado y los
+errores de sincronización, sin tener que leer un log ni entrar a la base.
+Devuelve la versión local aplicada, lo que se sabe del catálogo que publica la
+cátedra, el atraso en versiones, el último intento con su modo, motivo, inicio,
+fin y resultado, y los últimos errores con su código estable.
+
+**Responde 200 siempre**, incluso sin catálogo aplicado o con la cátedra
+inalcanzable: es justo entonces cuando más sirve. Los únicos errores posibles
+son los de autenticación.
+
+El campo `health` distingue cuatro situaciones, y la distinción es el punto:
+
+| `health` | Significa | Qué hacer |
+| --- | --- | --- |
+| `UP_TO_DATE` | la copia local está en la versión publicada | nada |
+| `BEHIND` | faltan versiones por aplicar | **nada: se recupera solo**, lo trae la próxima notificación o el chequeo periódico |
+| `REBUILDING` | hay una sincronización en curso | esperar |
+| `DEGRADED` | no se pudo verificar el origen, o el último intento falló | **mirar**: no se arregla esperando |
+
+`BEHIND` y `DEGRADED` son el par que importa. En los dos la copia local no está
+al día, y piden reacciones opuestas: uno se resuelve sin intervención y el otro
+no se resuelve nunca sin ella.
+
+```bash
+curl -s -H "Authorization: Bearer $JWT_INTERNO" \
+  http://localhost:8080/api/internal/sync/status | jq '{health, versionsBehind}'
+# { "health": "DEGRADED", "versionsBehind": null }
+```
+
+**Va detrás del JWT técnico interno y no del de usuario final**, aunque no sea
+un dato del catálogo: los códigos de error de integración y el historial de
+intentos describen cómo está hecho el servicio, no lo que la app muestra. Y el
+servicio de turnos sí es un consumidor legítimo, porque lee la agenda vigente de
+esta copia y preguntar cuán fresca está es parte de su diagnóstico.
+
+**No hay endpoint para disparar una sincronización.** Sería la única escritura
+de toda la API, y le daría a otro servicio la decisión de cuándo se reconstruye
+esta copia local. Quien necesite forzarla reinicia el servicio o espera el
+chequeo periódico.
+
+#### Las métricas equivalentes
+
+Lo mismo agregado está en `/actuator/metrics`, para graficarlo:
+
+| Métrica | Etiquetas | Para qué |
+| --- | --- | --- |
+| `catalog.sync.runs` | `mode`, `trigger`, `status` | cuántas sincronizaciones hubo y cómo salieron |
+| `catalog.sync.errors` | `code` | por qué fallan |
+| `catalog.sync.events` | `outcome` | notificaciones resueltas; `outcome=DUPLICATE` son las descartadas por duplicado |
+
+```bash
+curl -s -H "Authorization: Bearer $JWT_USUARIO" \
+  'http://localhost:8080/actuator/metrics/catalog.sync.events?tag=outcome:DUPLICATE'
+```
+
+Ese último contador es la **evidencia de idempotencia** que pide §11: un mensaje
+repetido que no repitió ningún efecto, contado. `/actuator/metrics` exige token
+igual que `/actuator/info`; lo único público es `/actuator/health`.
+
+#### Retención del historial
+
+`sync_run` suma una fila por intento y nada la achica sola: con el chequeo
+periódico corriendo cada pocos minutos, la tabla crece aunque nunca pase nada.
+Un trabajo periódico borra las corridas terminadas hace más de
+`SYNC_HISTORY_RETENTION` (90 días por defecto) y sus errores se van con ellas.
+La corrida más reciente nunca se borra: un servicio quieto informaría "ninguna
+sincronización" en lugar de "la última fue hace mucho", que es el dato que se
+está buscando.
+
+A diferencia de `PROCESSED_EVENTS_RETENTION`, esta ventana no afecta la
+correctitud: borrar de más solo deja menos para diagnosticar.
+
 ### La búsqueda de profesionales: lo que consume la app KMP
 
 ```
@@ -340,6 +419,22 @@ Un job que depende de una red privada falla siempre y deja de informar sobre
 el código, así que esas pruebas quedan fuera a propósito. El mecanismo es la
 propiedad `excluded.test.groups` del `pom.xml`.
 
+Todo lo demás **sí** corre en CI, incluidas las suites que levantan
+PostgreSQL, Redis y Kafka con Testcontainers: el runner trae Docker, así que
+no hacen falta `services:` declarados ni configuración extra. La más grande es
+la de idempotencia y recuperación, que usa los tres a la vez y es la que §11
+pide poder mostrar:
+
+```bash
+./mvnw test -Dtest=SyncRecoveryEndToEndTest
+```
+
+Cubre el mensaje duplicado, dos versiones pendientes aplicadas en orden, la
+discontinuidad de §18.2, la caída entre persistir y confirmar el offset, y el
+reinicio con una sincronización que quedó a medias. El detalle de cada
+escenario está en
+[`docs/sincronizacion.md`](docs/sincronizacion.md#11-cómo-se-prueba).
+
 ### Análisis de calidad: SonarCloud
 
 El mismo job, después de que las pruebas pasan, manda el código a
@@ -347,6 +442,26 @@ El mismo job, después de que las pruebas pasan, manda el código a
 El análisis **lo dispara GitHub Actions**, no el análisis automático de
 SonarCloud: los dos a la vez se pisan, así que el automático queda
 desactivado en la web.
+
+**Corre solo en los pull requests y en `main`.** Un push a una rama de issue
+compila y prueba, pero no analiza: la organización está en el plan gratuito,
+que no analiza ramas distintas de `main`, y un análisis de rama igual publica
+su check y ese check queda rojo **siempre**. Con dos checks de Sonar por PR y
+uno permanentemente en rojo, un gate que falla de verdad pasa desapercibido —
+que es exactamente lo que ocurrió en el PR #80 (issue #84)—. Con el filtro hay
+un solo check por PR, y un rojo ahí vuelve a significar que algo está mal.
+
+Para ver el gate de un PR sin entrar a la web:
+
+```bash
+curl -s "https://sonarcloud.io/api/qualitygates/project_status?projectKey=manudiiez-um-programacion_turnos-catalogo-sync&pullRequest=NN"
+# y los problemas nuevos, cuando falla:
+curl -s "https://sonarcloud.io/api/issues/search?componentKeys=manudiiez-um-programacion_turnos-catalogo-sync&pullRequest=NN&types=BUG&ps=20&additionalFields=_all"
+```
+
+El JSON de los problemas trae `flows`, que muestra el camino completo del
+análisis de flujo de datos. Vale leerlo antes de "arreglar" la línea marcada:
+suele apuntar al final de una cadena que empieza en otro archivo.
 
 Qué mide:
 
@@ -386,6 +501,14 @@ que coincidir exactamente con los que muestra SonarCloud.
 
 Camino recomendado y el único que no necesita tener JDK 25 ni PostgreSQL
 instalados en la máquina: solo Docker.
+
+Este `compose.yaml` es para **desarrollar el catálogo de forma aislada**:
+levanta solo este servicio y su propio PostgreSQL de un solo uso. En la
+solución completa, ese mismo rol y esa misma base conviven en una
+**instancia física de PostgreSQL compartida** con el servicio de turnos
+(dos bases lógicas, sin permisos cruzados), orquestada por un compose de
+nivel superior que no vive en este repo. Ver
+[`docs/adr/0003-instancia-postgres-compartida.md`](docs/adr/0003-instancia-postgres-compartida.md).
 
 ```bash
 cp .env.example .env            # una vez; completar las dos contraseñas
@@ -470,14 +593,22 @@ permisos cruzados** y migraciones independientes. Por eso hay dos cuentas:
 | `catalogo` (`DB_USERNAME`) | La cuenta con la que se conecta el servicio. | Rol común: `LOGIN`, dueño de su base. Sin `SUPERUSER`, `CREATEDB` ni `CREATEROLE` |
 
 El script de inicialización, además de crear el rol y la base, le quita a
-`PUBLIC` el permiso de conexión y lo devuelve solo al dueño. Resultado: un
-usuario de otro servicio —el de turnos, por ejemplo— no puede conectarse a
-esta base ni siquiera si en el futuro comparten la instancia:
+`PUBLIC` el permiso de conexión y lo devuelve solo al dueño. Resultado: el
+usuario del servicio de turnos no puede conectarse a esta base:
 
 ```bash
 # FATAL: permission denied for database "catalogo"
 #        User does not have CONNECT privilege.
 ```
+
+Esto ya no es un escenario hipotético: la solución completa comparte una
+sola instancia física de PostgreSQL entre los dos servicios (D9 en
+`CLAUDE.md`, detalle en
+[`docs/adr/0003-instancia-postgres-compartida.md`](docs/adr/0003-instancia-postgres-compartida.md)).
+El script de este repo (prefijo `01-`, variables `CATALOG_DB_*`, puerto
+`5432`) ya cumplía el contrato que hace posible esa convivencia sin tocar
+nada; el lado de turnos usa prefijo `02-`, variables `TURNOS_DB_*` y puerto
+`5433`.
 
 ### Las migraciones
 
@@ -826,6 +957,7 @@ ninguna `@Entity` JPA ni DTO web puede aparecer en una firma de `domain` o
 - [`docs/catedra/PROJECT_STATEMENT-v1.md`](docs/catedra/PROJECT_STATEMENT-v1.md) — enunciado de la cátedra.
 - [`docs/catedra/INTEGRATION_REFERENCE-v2.md`](docs/catedra/INTEGRATION_REFERENCE-v2.md) — contratos externos (REST, Redis, Kafka). Es la fuente de verdad: no se inventan campos, endpoints ni claves.
 - [`docs/arquitectura.md`](docs/arquitectura.md) — los diagramas de arquitectura: el sistema completo (app KMP, los dos servicios, sus bases y las integraciones con la cátedra) y este servicio por dentro.
+- [`docs/sincronizacion.md`](docs/sincronizacion.md) — cómo se sincroniza el catálogo: completa, incremental, idempotencia y recuperación ante mensajes duplicados, perdidos o fuera de orden.
 - [`docs/contratos/catalogo-turnos.md`](docs/contratos/catalogo-turnos.md) — el contrato REST con el servicio de turnos: operaciones, DTOs, autenticación, errores, consistencia y versionado.
 - [`docs/contratos/openapi.yaml`](docs/contratos/openapi.yaml) — el mismo contrato en OpenAPI, generado por el servicio y verificado por una prueba.
 - [`docs/adr/`](docs/adr/) — decisiones de arquitectura, una por archivo, con su índice.

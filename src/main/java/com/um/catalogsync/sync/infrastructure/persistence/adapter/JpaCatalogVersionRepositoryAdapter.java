@@ -10,6 +10,7 @@ import com.um.catalogsync.sync.infrastructure.persistence.mapper.CatalogVersionM
 import com.um.catalogsync.sync.infrastructure.persistence.repository.JpaCatalogVersionRepository;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Objects;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -43,7 +44,7 @@ public class JpaCatalogVersionRepositoryAdapter implements CatalogVersionReposit
     @Override
     @Transactional(readOnly = true)
     public Optional<CatalogVersion> findCurrent() {
-        return jpaRepository.findById(CatalogVersionEntity.ID_UNICA).map(mapper::toDomain);
+        return jpaRepository.findById(CatalogVersionEntity.ID_UNICA).map(this::aDominio);
     }
 
     /**
@@ -89,10 +90,36 @@ public class JpaCatalogVersionRepositoryAdapter implements CatalogVersionReposit
             // primaria del caso concurrente estallaria al commitear, fuera
             // del try, y no se podria traducir. Es el mismo motivo que en
             // los adaptadores de profesionales y horarios.
-            return mapper.toDomain(jpaRepository.saveAndFlush(aGuardar));
+            return aDominio(jpaRepository.saveAndFlush(aGuardar));
         } catch (DataIntegrityViolationException e) {
             throw new ConcurrentVersionAdvanceException(version, e);
         }
+    }
+
+    /**
+     * Mapea la fila a dominio y <b>garantiza que no sale un nulo</b>.
+     *
+     * <p>Es el mismo helper que {@code JpaSyncRunRepositoryAdapter}, por el
+     * mismo motivo: {@code CatalogVersionMapper.toDomain} devuelve
+     * {@code null} si recibe {@code null} —la convencion de todos los mappers
+     * del proyecto— y acá nunca recibe {@code null}, pero el analisis
+     * estatico no puede saberlo. Sin esto concluye que {@link #advanceTo}
+     * puede devolver nulo, y marca como posible {@code NullPointerException}
+     * cada {@code aplicada.getVersion()} de los dos casos de uso que aplican
+     * datos.
+     *
+     * <p><b>Acá todavia no lo marcó</b>, a diferencia del adaptador del
+     * historial: la cadena tiene un salto mas de interfaz y el analisis se
+     * detuvo antes. Se agrega igual porque la forma es identica y el momento
+     * en que aparecería es el peor posible —la promocion del milestone, donde
+     * todo M3 pasa a ser codigo nuevo de golpe— y porque cuesta una linea.
+     *
+     * @throws NullPointerException si el mapeo devolviera nulo, que solo
+     *     puede venir de un cambio en el mapper que rompa su contrato
+     */
+    private CatalogVersion aDominio(CatalogVersionEntity entity) {
+        return Objects.requireNonNull(mapper.toDomain(entity),
+                "El mapeo de la version de catalogo no puede devolver null");
     }
 
     /**

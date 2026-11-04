@@ -14,6 +14,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.groups.Tuple.tuple;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
+import com.um.catalogsync.sync.domain.model.SyncDecisionReason;
 import com.um.catalogsync.category.domain.ports.out.CategoryRepository;
 import com.um.catalogsync.integration.IntegrationFixtures;
 import com.um.catalogsync.integration.application.session.TechnicalSessionCache;
@@ -188,7 +189,7 @@ class FullSyncEndToEndTest extends AbstractPostgresIntegrationTest {
     void baseVaciaQuedaSincronizada() {
         laCatedraSirveSuCatalogo(VERSION);
 
-        SyncRun corrida = sincronizacion.runFullSync(SyncTrigger.STARTUP);
+        SyncRun corrida = sincronizacion.runFullSync(SyncTrigger.STARTUP, SyncDecisionReason.REQUESTED);
 
         // Las tres colecciones del JSON quedaron en la copia local, con los
         // ids y el estado que mando la catedra. El deshabilitado tambien: es
@@ -254,7 +255,7 @@ class FullSyncEndToEndTest extends AbstractPostgresIntegrationTest {
                         }
                         """)));
 
-        sincronizacion.runFullSync(SyncTrigger.STARTUP);
+        sincronizacion.runFullSync(SyncTrigger.STARTUP, SyncDecisionReason.REQUESTED);
 
         // Y el token que devolvio ese login es el que viaja como bearer al
         // snapshot (§4). Es la costura entre los slices integration y sync:
@@ -280,7 +281,7 @@ class FullSyncEndToEndTest extends AbstractPostgresIntegrationTest {
         // la frontera real y no inyectado en el medio.
         laCatedraSirve(catalogoInconsistente(8L));
 
-        assertThatThrownBy(() -> sincronizacion.runFullSync(SyncTrigger.EVENT))
+        assertThatThrownBy(() -> sincronizacion.runFullSync(SyncTrigger.EVENT, SyncDecisionReason.REQUESTED))
                 .isInstanceOf(UnknownProfessionalException.class);
 
         // La version sigue siendo la 7: avanza solo cuando la unidad de
@@ -315,7 +316,7 @@ class FullSyncEndToEndTest extends AbstractPostgresIntegrationTest {
         dadaLaCopiaSincronizada();
         laCatedraSirve(catalogoInconsistente(8L));
 
-        assertThatThrownBy(() -> sincronizacion.runFullSync(SyncTrigger.EVENT))
+        assertThatThrownBy(() -> sincronizacion.runFullSync(SyncTrigger.EVENT, SyncDecisionReason.REQUESTED))
                 .isInstanceOf(UnknownProfessionalException.class);
 
         // Esto es lo que ve la app KMP mientras la sincronizacion esta mal: la
@@ -397,7 +398,7 @@ class FullSyncEndToEndTest extends AbstractPostgresIntegrationTest {
     /** Deja la copia local en la version 7, sincronizada desde el doble. */
     private void dadaLaCopiaSincronizada() {
         laCatedraSirveSuCatalogo(VERSION);
-        sincronizacion.runFullSync(SyncTrigger.STARTUP);
+        sincronizacion.runFullSync(SyncTrigger.STARTUP, SyncDecisionReason.REQUESTED);
     }
 
     private static void laCatedraSirveSuCatalogo(long version) {

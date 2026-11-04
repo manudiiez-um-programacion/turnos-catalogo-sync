@@ -71,6 +71,25 @@ public final class SnapshotFixtures {
     }
 
     /**
+     * El mismo ejemplo de §7, servido en otra version.
+     *
+     * <p>Lo necesita la prueba de recuperacion por discontinuidad: el snapshot
+     * que reconstruye la copia local tiene que venir en una version <b>por
+     * encima</b> de la ventana retenida, que es lo que vuelve observable que
+     * se reconstruyo y no se avanzo de a una.
+     *
+     * <p>Se reemplaza el numero sobre el literal en lugar de copiar el JSON
+     * entero con otra version: asi el ejemplo de la referencia sigue estando
+     * una sola vez, y si §7 cambia hay un solo lugar que actualizar.
+     *
+     * @param snapshotVersion la version que declara el snapshot
+     */
+    public static String snapshotEnLaVersion(long snapshotVersion) {
+        return snapshotDeLaReferencia()
+                .replace("\"snapshotVersion\": 7", "\"snapshotVersion\": " + snapshotVersion);
+    }
+
+    /**
      * El ejemplo de §7 con una segunda entidad deshabilitada en cada
      * coleccion, campos que el contrato todavia no tiene y una hora sin
      * segundos.

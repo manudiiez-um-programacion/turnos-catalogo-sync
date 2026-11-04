@@ -153,10 +153,111 @@ Garantías sobre esta lista:
 | `appliedAt` | `string` (date-time) | Cuándo esta copia terminó de aplicarla, en UTC |
 | `source` | `string` | `SNAPSHOT` o `INCREMENTAL` |
 
-## 5. Errores
+## 5. Operación: estado de sincronización
+
+```http
+GET /api/internal/sync/status
+Authorization: Bearer <jwt-tecnico-interno>
+```
+
+**Sin parámetros y sin cuerpo.** Devuelve el estado de la copia local frente al
+catálogo que publica la cátedra: qué versión tiene aplicada, cuánto le falta,
+cómo salió el último intento y qué viene fallando.
+
+**Para qué le sirve a turnos.** La agenda vigente de §4 siempre viene con su
+`catalogVersion`, pero ese número solo dice *sobre qué copia* se respondió, no
+si esa copia está fresca. Esto lo responde. El caso concreto: si turnos ve
+rechazos de agenda que no espera, acá distingue "la copia local está atrasada y
+se va a poner al día sola" de "la integración con la cátedra está caída y no se
+va a arreglar esperando".
+
+### Respuesta `200 OK`
+
+```json
+{
+  "health": "UP_TO_DATE",
+  "localVersion": { "version": 128, "appliedAt": "2026-11-03T18:30:00Z", "source": "SNAPSHOT" },
+  "remote": {
+    "state": "KNOWN",
+    "currentVersion": 128,
+    "oldestAvailableVersion": 120,
+    "publishedAt": "2026-11-03T18:29:50Z"
+  },
+  "versionsBehind": 0,
+  "lastSync": {
+    "id": 412,
+    "mode": "INCREMENTAL",
+    "trigger": "EVENT",
+    "decisionReason": "BEHIND_CURRENT_VERSION",
+    "status": "SUCCEEDED",
+    "fromVersion": 127,
+    "toVersion": 128,
+    "startedAt": "2026-11-03T18:29:58Z",
+    "finishedAt": "2026-11-03T18:30:00Z"
+  },
+  "recentErrors": []
+}
+```
+
+**Responde 200 siempre**, y es la diferencia deliberada con la agenda vigente.
+Sin catálogo aplicado o con la cátedra inalcanzable, la agenda contesta
+`503 CATALOG_NOT_SYNCHRONIZED` porque no tiene nada que devolver; este endpoint
+tiene justo entonces su respuesta más útil. Los únicos errores posibles son los
+de autenticación de §6.
+
+### `health`: los cuatro estados
+
+| Valor | Qué significa | Qué debería hacer turnos |
+| --- | --- | --- |
+| `UP_TO_DATE` | La copia local está en la versión que publica la cátedra | Nada |
+| `BEHIND` | Faltan versiones por aplicar | **Nada: se recupera solo.** Lo trae la próxima notificación o el chequeo periódico |
+| `REBUILDING` | Hay una sincronización en curso | Esperar. Las consultas siguen respondiendo, pero el resultado puede cambiar |
+| `DEGRADED` | No se pudo verificar el estado del origen, o el último intento falló | **Avisar.** No se arregla esperando: necesita que vuelva la cátedra o que se revise la cuenta técnica |
+
+**`BEHIND` y `DEGRADED` son el par que importa.** Son los dos estados en los
+que la copia local no está al día, y piden reacciones opuestas: uno se resuelve
+sin intervención y el otro no se resuelve nunca sin ella. Un único valor "no
+sincronizado" obligaría a adivinar cuál de los dos es.
+
+### Campos que pueden venir nulos, y qué significa cada nulo
+
+| Campo nulo | Significado |
+| --- | --- |
+| `localVersion` | Nunca se aplicó ningún catálogo: base recién inicializada |
+| `lastSync` | Nunca se intentó sincronizar |
+| `versionsBehind` | No se puede calcular: falta la versión local o la del origen |
+| `remote.currentVersion` | Ver `remote.state`: `NOT_PUBLISHED` (la cátedra no publicó nada) o `UNREACHABLE` (no se la pudo leer) |
+| `lastSync.toVersion` | La corrida no terminó, o terminó mal. Una corrida fallida **nunca** declara versión de llegada |
+| `lastSync.finishedAt` | La corrida sigue en curso |
+
+Ningún nulo se rellena con un cero ni con un objeto vacío: "no hay versión
+local" y "estoy en la versión 0" son estados distintos, y confundirlos haría
+que una base vacía pareciera sincronizada.
+
+### `recentErrors`
+
+Los últimos errores registrados, del más nuevo al más viejo, transversales a
+las corridas. Cada uno trae `code` —estable, comparable, el mismo criterio que
+§13— y `detail`, que es texto para diagnosticar y **puede cambiar sin mover la
+versión del contrato**. El `detail` nunca incluye secretos.
+
+El historial tiene retención acotada (`SYNC_HISTORY_RETENTION`, 90 días por
+defecto): los errores se borran con la corrida que los produjo, salvo la más
+reciente, que se conserva siempre.
+
+### Métricas equivalentes
+
+Lo mismo, agregado, está en `/actuator/metrics` para quien quiera graficarlo:
+`catalog.sync.runs` por modo, disparador y resultado; `catalog.sync.errors` por
+código; y `catalog.sync.events` por resultado, donde
+`outcome=DUPLICATE` cuenta las notificaciones descartadas por duplicado.
+
+## 6. Errores
 
 Todos en `application/problem+json`, con la forma de §13 de la referencia de
-integración:
+integración. Los de autenticación valen para las dos operaciones; los demás
+—404, 409 y 503— son de la agenda vigente, porque el estado de sincronización
+responde 200 siempre:
 
 ```json
 {
@@ -200,7 +301,7 @@ estado no permite la respuesta, que es lo que significa 409. El `code` se
 mantiene igual para que un cliente que ya lo interpreta no necesite un caso
 especial.
 
-## 6. Consistencia: qué pasa si turnos consulta durante una sincronización
+## 7. Consistencia: qué pasa si turnos consulta durante una sincronización
 
 Esta es la pregunta que importa, porque la copia local se reescribe mientras el
 otro servicio la consulta.
@@ -250,7 +351,7 @@ lectura de la agenda y la confirmación, volver a leer la agenda antes de
 confirmar: es la forma de no confirmar un turno contra reglas que ya no están
 vigentes.
 
-## 7. Criterio de versionado
+## 8. Criterio de versionado
 
 La versión del documento OpenAPI (`info.version`) es la del **contrato**, no la
 del artefacto desplegado.
@@ -289,11 +390,11 @@ prueba falla si el archivo y lo que el servicio publica dejan de coincidir:
 El diff de esa regeneración **es** el cambio de contrato, y es lo que hay que
 mirar para decidir si mueve la versión.
 
-## 8. Trazabilidad con el repo de turnos
+## 9. Trazabilidad con el repo de turnos
 
 | Lado | Issue |
 | --- | --- |
-| Catálogo (este repo) | #18 (endpoint), #20 (este documento), #17 (autenticación) |
+| Catálogo (este repo) | #18 (agenda vigente), #28 (estado de sincronización), #20 (este documento), #17 (autenticación) |
 | Turnos | `manudiiez-um-programacion/turnos-reservas-service` — **pendiente** |
 
 > **Pendiente:** el repo `turnos-reservas-service` todavía no tiene milestones

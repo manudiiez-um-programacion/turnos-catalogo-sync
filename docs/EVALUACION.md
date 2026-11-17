@@ -3,19 +3,19 @@
 
 > Documento **generado automáticamente** por la cátedra de Programación II (UM): RepoSense + análisis de calidad de **7 dimensiones**. **No editar a mano**: se regenera en cada evaluación.
 > Rama evaluada: `main`. Análisis **heurístico** (regex + métricas) + build: es una criba para orientar la revisión, **no una nota**. La **documentación** del repositorio no se evalúa.
-> Generado: 2026-11-12.
+> Generado: 2026-11-17.
 
 ## 1. Veredicto
 
 | Aspecto | Resultado |
 |---|---|
-| Índice de calidad | **66/100** |
+| Índice de calidad | **77/100** |
 | Tipo de repositorio | `backend` |
 | Build (`mvnw verify` / `gradlew check`) | OK |
 | Código (LOC) | 28,222 |
 | Archivos de código | 335 |
 | Clases | 379 |
-| Código dentro de clases (%POO) | 76% |
+| Código dentro de clases (%POO) | 53% |
 | Funciones fuera de clases | 1 |
 | Duplicación (puerta) | 4.4% |
 | Duplicación lógica | 4.7% |
@@ -31,12 +31,12 @@ Criterios de la cátedra (`CRITERIOS-CALIDAD.md`): **Aprobar** se juega con el p
 
 | Semáforo | Resultado |
 |---|---|
-| Aprobar (`estandar`) | **no cumple** — 5/11 |
-| Destacar (`exigente`) | **no cumple** — 4/11 |
+| Aprobar (`estandar`) | **no cumple** — 6/11 |
+| Destacar (`exigente`) | **no cumple** — 5/11 |
 
-**Para aprobar, falta cumplir:** SOLID; Duplicación; SEC
+**Para aprobar, falta cumplir:** SOLID; Duplicación
 
-**Para destacar, falta cumplir:** SOLID; POO; Duplicación; SEC
+**Para destacar, falta cumplir:** SOLID; POO; Duplicación
 
 ## 3. Autoría (RepoSense)
 
@@ -52,11 +52,11 @@ Cada dimensión indica **qué mide**, **por qué importa** y **tu resultado**. C
 
 | Dimensión | Peso | Puntaje |
 |:--|--:|--:|
-| **D1** Diseño OO, SOLID y patrones (20%) | 20% | 1 |
+| **D1** Diseño OO, SOLID y patrones (20%) | 20% | 2 |
 | **D2** Arquitectura hexagonal — backend (15%) | 15% | 100 |
 | **D3** Frontend KMP: MVVM y buenas prácticas (10%) | 10% | N/A |
 | **D4** Integración y contrato (10%) | 10% | 90 |
-| **D5** Seguridad y robustez (10%) | 10% | 0 |
+| **D5** Seguridad y robustez (10%) | 10% | 100 |
 | **D6** Pruebas y cobertura (20%) | 20% | 100 |
 | **D7** Proceso y entrega (15%) | 15% | 100 |
 
@@ -64,7 +64,7 @@ Cada dimensión indica **qué mide**, **por qué importa** y **tu resultado**. C
 
 - **Qué mide:** Métricas orientadas a objetos (clases, métodos, campos, cohesión, acoplamiento, herencia) y proxies de SOLID, más patrones de diseño.
 - **Por qué importa:** El eje de la materia es el buen uso de la POO y su arquitectura: un diseño con clases claras y poco acopladas es más fácil de entender, probar y cambiar.
-- **Tu resultado:** **1/100**
+- **Tu resultado:** **2/100**
 - **Para investigar la causa:**
     - ¿Se pensó el modelo de clases antes de codificar o se agrupó después?
     - ¿Qué clases concentran muchas responsabilidades a la vez?
@@ -86,11 +86,7 @@ Cada dimensión indica **qué mide**, **por qué importa** y **tu resultado**. C
 
 - **Qué mide:** Credenciales embebidas, consultas SQL por concatenación, y presencia de config de entorno; aislamiento de secretos.
 - **Por qué importa:** Un secreto en el repositorio o una consulta construida por concatenación son riesgos concretos, no hipotéticos.
-- **Tu resultado:** **0/100**
-- **Para investigar la causa:**
-    - ¿De dónde salen las credenciales que usa el sistema?
-    - ¿Qué consultas se arman con texto en vez de parámetros?
-    - ¿Qué pasa si falta una variable de entorno al arrancar?
+- **Tu resultado:** **100/100**
 
 ### D6. Pruebas y cobertura (20%)
 
@@ -108,7 +104,7 @@ Cada dimensión indica **qué mide**, **por qué importa** y **tu resultado**. C
 
 El análisis encontró las siguientes señales (archivo, sin número de línea a propósito):
 
-**DIP/concretos** (291)
+**DIP/concretos** (130)
 - clase 'ProfessionalSpecifications' muy acoplada (CBO=32) — `src/main/java/com/um/catalogsync/professional/infrastructure/persistence/specification/ProfessionalSpecifications.java`
 - clase 'JpaProfessionalRepositoryAdapter' muy acoplada (CBO=42) — `src/main/java/com/um/catalogsync/professional/infrastructure/persistence/adapter/JpaProfessionalRepositoryAdapter.java`
 - clase 'ProfessionalEntity' muy acoplada (CBO=8) — `src/main/java/com/um/catalogsync/professional/infrastructure/persistence/entity/ProfessionalEntity.java`
@@ -239,173 +235,11 @@ El análisis encontró las siguientes señales (archivo, sin número de línea a
 - clase 'TimeOfDay' muy acoplada (CBO=19) — `src/main/java/com/um/catalogsync/schedule/domain/model/TimeOfDay.java`
 - clase 'TimeOfDay' instancia 3 concretos (CBO=19) — `src/main/java/com/um/catalogsync/schedule/domain/model/TimeOfDay.java`
 - clase 'CurrentAgenda' muy acoplada (CBO=9) — `src/main/java/com/um/catalogsync/schedule/domain/model/CurrentAgenda.java`
-- clase 'ProfessionalMapperTest' muy acoplada (CBO=9) — `src/test/java/com/um/catalogsync/professional/infrastructure/persistence/mapper/ProfessionalMapperTest.java`
-- clase 'JpaProfessionalRepositoryAdapterTest' muy acoplada (CBO=38) — `src/test/java/com/um/catalogsync/professional/infrastructure/persistence/adapter/JpaProfessionalRepositoryAdapterTest.java`
-- clase 'ProfessionalSearchQueryTest' muy acoplada (CBO=38) — `src/test/java/com/um/catalogsync/professional/infrastructure/persistence/adapter/ProfessionalSearchQueryTest.java`
-- clase 'OrdenYPaginado' muy acoplada (CBO=9) — `src/test/java/com/um/catalogsync/professional/infrastructure/persistence/adapter/ProfessionalSearchQueryTest.java`
-- clase 'ProfessionalAvailabilityQueryTest' muy acoplada (CBO=44) — `src/test/java/com/um/catalogsync/professional/infrastructure/persistence/adapter/ProfessionalAvailabilityQueryTest.java`
-- clase 'Rango' muy acoplada (CBO=10) — `src/test/java/com/um/catalogsync/professional/infrastructure/persistence/adapter/ProfessionalAvailabilityQueryTest.java`
-- clase 'Combinado' muy acoplada (CBO=11) — `src/test/java/com/um/catalogsync/professional/infrastructure/persistence/adapter/ProfessionalAvailabilityQueryTest.java`
-- clase 'ProfessionalSearchApiIntegrationTest' muy acoplada (CBO=71) — `src/test/java/com/um/catalogsync/professional/infrastructure/web/ProfessionalSearchApiIntegrationTest.java`
-- clase 'CopiaSincronizada' muy acoplada (CBO=19) — `src/test/java/com/um/catalogsync/professional/infrastructure/web/ProfessionalSearchApiIntegrationTest.java`
-- clase 'Disponibilidad' muy acoplada (CBO=19) — `src/test/java/com/um/catalogsync/professional/infrastructure/web/ProfessionalSearchApiIntegrationTest.java`
-- clase 'ProfessionalServiceTest' muy acoplada (CBO=19) — `src/test/java/com/um/catalogsync/professional/application/service/ProfessionalServiceTest.java`
-- clase 'ProfessionalServiceTest' instancia 7 concretos (CBO=19) — `src/test/java/com/um/catalogsync/professional/application/service/ProfessionalServiceTest.java`
-- clase 'SearchProfessionalsUseCaseImplTest' muy acoplada (CBO=17) — `src/test/java/com/um/catalogsync/professional/application/usecases/SearchProfessionalsUseCaseImplTest.java`
-- clase 'SearchProfessionalsUseCaseImplTest' instancia 3 concretos (CBO=17) — `src/test/java/com/um/catalogsync/professional/application/usecases/SearchProfessionalsUseCaseImplTest.java`
-- clase 'ProfessionalSearchCriteriaTest' muy acoplada (CBO=15) — `src/test/java/com/um/catalogsync/professional/domain/model/ProfessionalSearchCriteriaTest.java`
-- clase 'ProfessionalSearchCriteriaTest' instancia 7 concretos (CBO=15) — `src/test/java/com/um/catalogsync/professional/domain/model/ProfessionalSearchCriteriaTest.java`
-- clase 'ProfessionalPageTest' muy acoplada (CBO=8) — `src/test/java/com/um/catalogsync/professional/domain/model/ProfessionalPageTest.java`
-- clase 'ProfessionalPageTest' instancia 6 concretos (CBO=8) — `src/test/java/com/um/catalogsync/professional/domain/model/ProfessionalPageTest.java`
-- clase 'SearchableNameTest' muy acoplada (CBO=8) — `src/test/java/com/um/catalogsync/professional/domain/model/SearchableNameTest.java`
-- clase 'CatalogSnapshotFixtures' muy acoplada (CBO=23) — `src/test/java/com/um/catalogsync/sync/CatalogSnapshotFixtures.java`
-- clase 'SyncRecoveryEndToEndTest' muy acoplada (CBO=125) — `src/test/java/com/um/catalogsync/sync/SyncRecoveryEndToEndTest.java`
-- clase 'SyncRecoveryEndToEndTest' instancia 8 concretos (CBO=125) — `src/test/java/com/um/catalogsync/sync/SyncRecoveryEndToEndTest.java`
-- clase 'Idempotencia' muy acoplada (CBO=24) — `src/test/java/com/um/catalogsync/sync/SyncRecoveryEndToEndTest.java`
-- clase 'OrdenDeLasVersiones' muy acoplada (CBO=31) — `src/test/java/com/um/catalogsync/sync/SyncRecoveryEndToEndTest.java`
-- clase 'RecuperacionPorDiscontinuidad' muy acoplada (CBO=28) — `src/test/java/com/um/catalogsync/sync/SyncRecoveryEndToEndTest.java`
-- clase 'ReinicioConUnaSincronizacionAMedias' muy acoplada (CBO=24) — `src/test/java/com/um/catalogsync/sync/SyncRecoveryEndToEndTest.java`
-- clase 'ReconciliationIntegrationTest' muy acoplada (CBO=40) — `src/test/java/com/um/catalogsync/sync/ReconciliationIntegrationTest.java`
-- clase 'FullSyncIntegrationTest' muy acoplada (CBO=55) — `src/test/java/com/um/catalogsync/sync/FullSyncIntegrationTest.java`
-- clase 'FullSyncEndToEndTest' muy acoplada (CBO=89) — `src/test/java/com/um/catalogsync/sync/FullSyncEndToEndTest.java`
-- clase 'FullSyncEndToEndTest' instancia 3 concretos (CBO=89) — `src/test/java/com/um/catalogsync/sync/FullSyncEndToEndTest.java`
-- clase 'IncrementalSyncIntegrationTest' muy acoplada (CBO=47) — `src/test/java/com/um/catalogsync/sync/IncrementalSyncIntegrationTest.java`
-- clase 'PublishedCatalogFixtures' muy acoplada (CBO=15) — `src/test/java/com/um/catalogsync/sync/infrastructure/redis/PublishedCatalogFixtures.java`
-- clase 'CatedraRedisPropertiesTest' muy acoplada (CBO=9) — `src/test/java/com/um/catalogsync/sync/infrastructure/redis/CatedraRedisPropertiesTest.java`
-- clase 'CatedraRedisPropertiesTest' instancia 5 concretos (CBO=9) — `src/test/java/com/um/catalogsync/sync/infrastructure/redis/CatedraRedisPropertiesTest.java`
-- clase 'CatedraRedisForTests' muy acoplada (CBO=31) — `src/test/java/com/um/catalogsync/sync/infrastructure/redis/CatedraRedisForTests.java`
-- clase 'CatedraRedisForTests' instancia 4 concretos (CBO=31) — `src/test/java/com/um/catalogsync/sync/infrastructure/redis/CatedraRedisForTests.java`
-- clase 'CatalogChangesMapperTest' muy acoplada (CBO=23) — `src/test/java/com/um/catalogsync/sync/infrastructure/redis/mapper/CatalogChangesMapperTest.java`
-- clase 'PublishedCatalogMapperTest' muy acoplada (CBO=39) — `src/test/java/com/um/catalogsync/sync/infrastructure/redis/mapper/PublishedCatalogMapperTest.java`
-- clase 'RedisCatalogChangesAdapterTest' muy acoplada (CBO=44) — `src/test/java/com/um/catalogsync/sync/infrastructure/redis/adapter/RedisCatalogChangesAdapterTest.java`
-- clase 'RedisCatalogChangesAdapterTest' instancia 9 concretos (CBO=44) — `src/test/java/com/um/catalogsync/sync/infrastructure/redis/adapter/RedisCatalogChangesAdapterTest.java`
-- clase 'RedisPublishedCatalogAdapterTest' muy acoplada (CBO=62) — `src/test/java/com/um/catalogsync/sync/infrastructure/redis/adapter/RedisPublishedCatalogAdapterTest.java`
-- clase 'RedisPublishedCatalogAdapterTest' instancia 9 concretos (CBO=62) — `src/test/java/com/um/catalogsync/sync/infrastructure/redis/adapter/RedisPublishedCatalogAdapterTest.java`
-- clase 'InitialSyncOnStartupIntegrationTest' muy acoplada (CBO=55) — `src/test/java/com/um/catalogsync/sync/infrastructure/startup/InitialSyncOnStartupIntegrationTest.java`
-- clase 'InitialSyncOnStartupIntegrationTest' instancia 10 concretos (CBO=55) — `src/test/java/com/um/catalogsync/sync/infrastructure/startup/InitialSyncOnStartupIntegrationTest.java`
-- clase 'InitialCatalogSyncRunnerTest' muy acoplada (CBO=33) — `src/test/java/com/um/catalogsync/sync/infrastructure/startup/InitialCatalogSyncRunnerTest.java`
-- clase 'InitialCatalogSyncRunnerTest' instancia 12 concretos (CBO=33) — `src/test/java/com/um/catalogsync/sync/infrastructure/startup/InitialCatalogSyncRunnerTest.java`
-- clase 'SyncRunMapperTest' muy acoplada (CBO=23) — `src/test/java/com/um/catalogsync/sync/infrastructure/persistence/mapper/SyncRunMapperTest.java`
-- clase 'CatalogVersionMapperTest' muy acoplada (CBO=15) — `src/test/java/com/um/catalogsync/sync/infrastructure/persistence/mapper/CatalogVersionMapperTest.java`
-- clase 'JpaProcessedEventRepositoryAdapterTest' muy acoplada (CBO=34) — `src/test/java/com/um/catalogsync/sync/infrastructure/persistence/adapter/JpaProcessedEventRepositoryAdapterTest.java`
-- clase 'JpaCatalogVersionRepositoryAdapterTest' muy acoplada (CBO=57) — `src/test/java/com/um/catalogsync/sync/infrastructure/persistence/adapter/JpaCatalogVersionRepositoryAdapterTest.java`
-- clase 'JpaCatalogVersionRepositoryAdapterTest' instancia 5 concretos (CBO=57) — `src/test/java/com/um/catalogsync/sync/infrastructure/persistence/adapter/JpaCatalogVersionRepositoryAdapterTest.java`
-- clase 'JpaSyncRunRepositoryAdapterTest' muy acoplada (CBO=64) — `src/test/java/com/um/catalogsync/sync/infrastructure/persistence/adapter/JpaSyncRunRepositoryAdapterTest.java`
-- clase 'SyncMetricsTest' muy acoplada (CBO=27) — `src/test/java/com/um/catalogsync/sync/infrastructure/metrics/SyncMetricsTest.java`
-- clase 'CatalogSyncHealthIndicatorTest' muy acoplada (CBO=17) — `src/test/java/com/um/catalogsync/sync/infrastructure/health/CatalogSyncHealthIndicatorTest.java`
-- clase 'CatalogUpdatedConsumerIntegrationTest' muy acoplada (CBO=53) — `src/test/java/com/um/catalogsync/sync/infrastructure/messaging/CatalogUpdatedConsumerIntegrationTest.java`
-- clase 'CatalogUpdatedConsumerIntegrationTest' instancia 13 concretos (CBO=53) — `src/test/java/com/um/catalogsync/sync/infrastructure/messaging/CatalogUpdatedConsumerIntegrationTest.java`
-- clase 'CatedraKafkaPropertiesTest' muy acoplada (CBO=9) — `src/test/java/com/um/catalogsync/sync/infrastructure/messaging/CatedraKafkaPropertiesTest.java`
-- clase 'CatedraKafkaPropertiesTest' instancia 6 concretos (CBO=9) — `src/test/java/com/um/catalogsync/sync/infrastructure/messaging/CatedraKafkaPropertiesTest.java`
-- clase 'CatalogUpdatedFixtures' muy acoplada (CBO=8) — `src/test/java/com/um/catalogsync/sync/infrastructure/messaging/CatalogUpdatedFixtures.java`
-- clase 'CatalogUpdatedListenerTest' muy acoplada (CBO=29) — `src/test/java/com/um/catalogsync/sync/infrastructure/messaging/CatalogUpdatedListenerTest.java`
-- clase 'CatalogUpdatedListenerTest' instancia 8 concretos (CBO=29) — `src/test/java/com/um/catalogsync/sync/infrastructure/messaging/CatalogUpdatedListenerTest.java`
-- clase 'CatalogUpdatedMapperTest' muy acoplada (CBO=27) — `src/test/java/com/um/catalogsync/sync/infrastructure/messaging/mapper/CatalogUpdatedMapperTest.java`
-- clase 'SnapshotFixtures' muy acoplada (CBO=18) — `src/test/java/com/um/catalogsync/sync/infrastructure/client/SnapshotFixtures.java`
-- clase 'CatalogSnapshotMapperTest' muy acoplada (CBO=32) — `src/test/java/com/um/catalogsync/sync/infrastructure/client/mapper/CatalogSnapshotMapperTest.java`
-- clase 'CatalogSnapshotMapperTest' instancia 24 concretos (CBO=32) — `src/test/java/com/um/catalogsync/sync/infrastructure/client/mapper/CatalogSnapshotMapperTest.java`
-- clase 'RestCatalogSnapshotAdapterTest' muy acoplada (CBO=62) — `src/test/java/com/um/catalogsync/sync/infrastructure/client/adapter/RestCatalogSnapshotAdapterTest.java`
-- clase 'RestCatalogSnapshotAdapterTest' instancia 4 concretos (CBO=62) — `src/test/java/com/um/catalogsync/sync/infrastructure/client/adapter/RestCatalogSnapshotAdapterTest.java`
-- clase 'CatalogReconciliationJobTest' muy acoplada (CBO=32) — `src/test/java/com/um/catalogsync/sync/infrastructure/reconciliation/CatalogReconciliationJobTest.java`
-- clase 'CatalogReconciliationJobTest' instancia 9 concretos (CBO=32) — `src/test/java/com/um/catalogsync/sync/infrastructure/reconciliation/CatalogReconciliationJobTest.java`
-- clase 'CatalogEntityMapperTest' muy acoplada (CBO=17) — `src/test/java/com/um/catalogsync/sync/infrastructure/mapper/CatalogEntityMapperTest.java`
-- clase 'CatalogEntityMapperTest' instancia 6 concretos (CBO=17) — `src/test/java/com/um/catalogsync/sync/infrastructure/mapper/CatalogEntityMapperTest.java`
-- clase 'ProcessedEventRetentionJobTest' muy acoplada (CBO=16) — `src/test/java/com/um/catalogsync/sync/infrastructure/retention/ProcessedEventRetentionJobTest.java`
-- clase 'ProcessedEventRetentionJobTest' instancia 9 concretos (CBO=16) — `src/test/java/com/um/catalogsync/sync/infrastructure/retention/ProcessedEventRetentionJobTest.java`
-- clase 'SyncHistoryRetentionJobTest' muy acoplada (CBO=23) — `src/test/java/com/um/catalogsync/sync/infrastructure/retention/SyncHistoryRetentionJobTest.java`
-- clase 'SyncHistoryRetentionJobTest' instancia 14 concretos (CBO=23) — `src/test/java/com/um/catalogsync/sync/infrastructure/retention/SyncHistoryRetentionJobTest.java`
-- clase 'PurgasRegistradas' muy acoplada (CBO=10) — `src/test/java/com/um/catalogsync/sync/infrastructure/retention/SyncHistoryRetentionJobTest.java`
-- clase 'PurgasRegistradas' instancia 5 concretos (CBO=10) — `src/test/java/com/um/catalogsync/sync/infrastructure/retention/SyncHistoryRetentionJobTest.java`
-- clase 'SyncStatusApiIntegrationTest' muy acoplada (CBO=66) — `src/test/java/com/um/catalogsync/sync/infrastructure/web/SyncStatusApiIntegrationTest.java`
-- clase 'SyncStatusApiIntegrationTest' instancia 5 concretos (CBO=66) — `src/test/java/com/um/catalogsync/sync/infrastructure/web/SyncStatusApiIntegrationTest.java`
-- clase 'Reporte' muy acoplada (CBO=23) — `src/test/java/com/um/catalogsync/sync/infrastructure/web/SyncStatusApiIntegrationTest.java`
-- clase 'EstadosDegradados' muy acoplada (CBO=15) — `src/test/java/com/um/catalogsync/sync/infrastructure/web/SyncStatusApiIntegrationTest.java`
-- clase 'CatalogSyncServiceTest' muy acoplada (CBO=27) — `src/test/java/com/um/catalogsync/sync/application/service/CatalogSyncServiceTest.java`
-- clase 'CatalogSyncServiceTest' instancia 13 concretos (CBO=27) — `src/test/java/com/um/catalogsync/sync/application/service/CatalogSyncServiceTest.java`
-- clase 'HandleCatalogUpdatedUseCaseImplTest' muy acoplada (CBO=29) — `src/test/java/com/um/catalogsync/sync/application/usecases/HandleCatalogUpdatedUseCaseImplTest.java`
-- clase 'HandleCatalogUpdatedUseCaseImplTest' instancia 10 concretos (CBO=29) — `src/test/java/com/um/catalogsync/sync/application/usecases/HandleCatalogUpdatedUseCaseImplTest.java`
-- clase 'SincronizacionesRegistradas' muy acoplada (CBO=8) — `src/test/java/com/um/catalogsync/sync/application/usecases/HandleCatalogUpdatedUseCaseImplTest.java`
-- clase 'ApplyCatalogSnapshotUseCaseImplTest' muy acoplada (CBO=30) — `src/test/java/com/um/catalogsync/sync/application/usecases/ApplyCatalogSnapshotUseCaseImplTest.java`
-- clase 'ApplyCatalogSnapshotUseCaseImplTest' instancia 24 concretos (CBO=30) — `src/test/java/com/um/catalogsync/sync/application/usecases/ApplyCatalogSnapshotUseCaseImplTest.java`
-- clase 'GetLocalCatalogVersionUseCaseImplTest' muy acoplada (CBO=10) — `src/test/java/com/um/catalogsync/sync/application/usecases/GetLocalCatalogVersionUseCaseImplTest.java`
-- clase 'GetLocalCatalogVersionUseCaseImplTest' instancia 4 concretos (CBO=10) — `src/test/java/com/um/catalogsync/sync/application/usecases/GetLocalCatalogVersionUseCaseImplTest.java`
-- clase 'GetSyncStatusUseCaseImplTest' muy acoplada (CBO=52) — `src/test/java/com/um/catalogsync/sync/application/usecases/GetSyncStatusUseCaseImplTest.java`
-- clase 'GetSyncStatusUseCaseImplTest' instancia 18 concretos (CBO=52) — `src/test/java/com/um/catalogsync/sync/application/usecases/GetSyncStatusUseCaseImplTest.java`
-- clase 'Historial' muy acoplada (CBO=11) — `src/test/java/com/um/catalogsync/sync/application/usecases/GetSyncStatusUseCaseImplTest.java`
-- clase 'Historial' instancia 4 concretos (CBO=11) — `src/test/java/com/um/catalogsync/sync/application/usecases/GetSyncStatusUseCaseImplTest.java`
-- clase 'Origen' muy acoplada (CBO=9) — `src/test/java/com/um/catalogsync/sync/application/usecases/GetSyncStatusUseCaseImplTest.java`
-- clase 'Origen' instancia 5 concretos (CBO=9) — `src/test/java/com/um/catalogsync/sync/application/usecases/GetSyncStatusUseCaseImplTest.java`
-- clase 'ApplyCatalogVersionUseCaseImplTest' muy acoplada (CBO=42) — `src/test/java/com/um/catalogsync/sync/application/usecases/ApplyCatalogVersionUseCaseImplTest.java`
-- clase 'ApplyCatalogVersionUseCaseImplTest' instancia 5 concretos (CBO=42) — `src/test/java/com/um/catalogsync/sync/application/usecases/ApplyCatalogVersionUseCaseImplTest.java`
-- clase 'RunFullSyncUseCaseImplTest' muy acoplada (CBO=61) — `src/test/java/com/um/catalogsync/sync/application/usecases/RunFullSyncUseCaseImplTest.java`
-- clase 'RunFullSyncUseCaseImplTest' instancia 17 concretos (CBO=61) — `src/test/java/com/um/catalogsync/sync/application/usecases/RunFullSyncUseCaseImplTest.java`
-- clase 'CorridasQueRegistran' muy acoplada (CBO=14) — `src/test/java/com/um/catalogsync/sync/application/usecases/RunFullSyncUseCaseImplTest.java`
-- clase 'SynchronizeCatalogUseCaseImplTest' muy acoplada (CBO=68) — `src/test/java/com/um/catalogsync/sync/application/usecases/SynchronizeCatalogUseCaseImplTest.java`
-- clase 'SynchronizeCatalogUseCaseImplTest' instancia 25 concretos (CBO=68) — `src/test/java/com/um/catalogsync/sync/application/usecases/SynchronizeCatalogUseCaseImplTest.java`
-- clase 'Origen' muy acoplada (CBO=9) — `src/test/java/com/um/catalogsync/sync/application/usecases/SynchronizeCatalogUseCaseImplTest.java`
-- clase 'Origen' instancia 5 concretos (CBO=9) — `src/test/java/com/um/catalogsync/sync/application/usecases/SynchronizeCatalogUseCaseImplTest.java`
-- clase 'Incremental' muy acoplada (CBO=11) — `src/test/java/com/um/catalogsync/sync/application/usecases/SynchronizeCatalogUseCaseImplTest.java`
-- clase 'Completa' muy acoplada (CBO=10) — `src/test/java/com/um/catalogsync/sync/application/usecases/SynchronizeCatalogUseCaseImplTest.java`
-- clase 'Corridas' muy acoplada (CBO=15) — `src/test/java/com/um/catalogsync/sync/application/usecases/SynchronizeCatalogUseCaseImplTest.java`
-- clase 'ApplyIncrementalChangesUseCaseImplTest' muy acoplada (CBO=47) — `src/test/java/com/um/catalogsync/sync/application/usecases/ApplyIncrementalChangesUseCaseImplTest.java`
-- clase 'ApplyIncrementalChangesUseCaseImplTest' instancia 7 concretos (CBO=47) — `src/test/java/com/um/catalogsync/sync/application/usecases/ApplyIncrementalChangesUseCaseImplTest.java`
-- clase 'VersionLocalEnMemoria' muy acoplada (CBO=8) — `src/test/java/com/um/catalogsync/sync/application/usecases/ApplyIncrementalChangesUseCaseImplTest.java`
-- clase 'CatalogoPublicadoEnMemoria' muy acoplada (CBO=9) — `src/test/java/com/um/catalogsync/sync/application/usecases/ApplyIncrementalChangesUseCaseImplTest.java`
-- clase 'SyncStatusReportTest' muy acoplada (CBO=49) — `src/test/java/com/um/catalogsync/sync/domain/model/SyncStatusReportTest.java`
-- clase 'SyncStatusReportTest' instancia 5 concretos (CBO=49) — `src/test/java/com/um/catalogsync/sync/domain/model/SyncStatusReportTest.java`
-- clase 'CatalogVersionTest' muy acoplada (CBO=11) — `src/test/java/com/um/catalogsync/sync/domain/model/CatalogVersionTest.java`
-- clase 'ProfessionalCategoryMapperTest' muy acoplada (CBO=11) — `src/test/java/com/um/catalogsync/category/infrastructure/persistence/mapper/ProfessionalCategoryMapperTest.java`
-- clase 'JpaCategoryRepositoryAdapterTest' muy acoplada (CBO=15) — `src/test/java/com/um/catalogsync/category/infrastructure/persistence/adapter/JpaCategoryRepositoryAdapterTest.java`
-- clase 'FlywayMigrationsTest' muy acoplada (CBO=31) — `src/test/java/com/um/catalogsync/shared/infrastructure/FlywayMigrationsTest.java`
-- clase 'AbstractPostgresIntegrationTest' muy acoplada (CBO=16) — `src/test/java/com/um/catalogsync/shared/infrastructure/AbstractPostgresIntegrationTest.java`
-- clase 'TokensDePrueba' muy acoplada (CBO=25) — `src/test/java/com/um/catalogsync/shared/infrastructure/security/TokensDePrueba.java`
-- clase 'TokensDePrueba' instancia 4 concretos (CBO=25) — `src/test/java/com/um/catalogsync/shared/infrastructure/security/TokensDePrueba.java`
-- clase 'ApiSecurityIntegrationTest' muy acoplada (CBO=49) — `src/test/java/com/um/catalogsync/shared/infrastructure/security/ApiSecurityIntegrationTest.java`
-- clase 'ApiDeUsuario' muy acoplada (CBO=12) — `src/test/java/com/um/catalogsync/shared/infrastructure/security/ApiSecurityIntegrationTest.java`
-- clase 'IdentidadesSeparadas' muy acoplada (CBO=8) — `src/test/java/com/um/catalogsync/shared/infrastructure/security/ApiSecurityIntegrationTest.java`
-- clase 'ApiSecurityPropertiesTest' muy acoplada (CBO=13) — `src/test/java/com/um/catalogsync/shared/infrastructure/security/ApiSecurityPropertiesTest.java`
-- clase 'ContratoOpenApiVersionadoTest' muy acoplada (CBO=17) — `src/test/java/com/um/catalogsync/shared/infrastructure/web/ContratoOpenApiVersionadoTest.java`
-- clase 'ApiDeSoloLecturaTest' muy acoplada (CBO=25) — `src/test/java/com/um/catalogsync/shared/infrastructure/web/ApiDeSoloLecturaTest.java`
-- clase 'IntegrationFixtures' muy acoplada (CBO=18) — `src/test/java/com/um/catalogsync/integration/IntegrationFixtures.java`
-- clase 'SecretosNoSeFiltranTest' muy acoplada (CBO=53) — `src/test/java/com/um/catalogsync/integration/SecretosNoSeFiltranTest.java`
-- clase 'SecretosNoSeFiltranTest' instancia 13 concretos (CBO=53) — `src/test/java/com/um/catalogsync/integration/SecretosNoSeFiltranTest.java`
-- clase 'IntegrationConfigStartupVerifierTest' muy acoplada (CBO=11) — `src/test/java/com/um/catalogsync/integration/infrastructure/startup/IntegrationConfigStartupVerifierTest.java`
-- clase 'IntegrationConfigStartupVerifierTest' instancia 4 concretos (CBO=11) — `src/test/java/com/um/catalogsync/integration/infrastructure/startup/IntegrationConfigStartupVerifierTest.java`
-- clase 'IntegrationConfigMapperTest' muy acoplada (CBO=15) — `src/test/java/com/um/catalogsync/integration/infrastructure/client/mapper/IntegrationConfigMapperTest.java`
-- clase 'RestTechnicalAuthAdapterTest' muy acoplada (CBO=30) — `src/test/java/com/um/catalogsync/integration/infrastructure/client/adapter/RestTechnicalAuthAdapterTest.java`
-- clase 'RestTechnicalAuthAdapterTest' instancia 3 concretos (CBO=30) — `src/test/java/com/um/catalogsync/integration/infrastructure/client/adapter/RestTechnicalAuthAdapterTest.java`
-- clase 'RestIntegrationConfigAdapterTest' muy acoplada (CBO=21) — `src/test/java/com/um/catalogsync/integration/infrastructure/client/adapter/RestIntegrationConfigAdapterTest.java`
-- clase 'CatedraApiPropertiesTest' muy acoplada (CBO=19) — `src/test/java/com/um/catalogsync/integration/infrastructure/config/CatedraApiPropertiesTest.java`
-- clase 'CatedraApiPropertiesTest' instancia 3 concretos (CBO=19) — `src/test/java/com/um/catalogsync/integration/infrastructure/config/CatedraApiPropertiesTest.java`
-- clase 'TechnicalSessionCacheTest' muy acoplada (CBO=28) — `src/test/java/com/um/catalogsync/integration/application/session/TechnicalSessionCacheTest.java`
-- clase 'TechnicalSessionCacheTest' instancia 15 concretos (CBO=28) — `src/test/java/com/um/catalogsync/integration/application/session/TechnicalSessionCacheTest.java`
-- clase 'IntegrationServiceTest' muy acoplada (CBO=8) — `src/test/java/com/um/catalogsync/integration/application/service/IntegrationServiceTest.java`
-- clase 'ProvisioningStatusTest' muy acoplada (CBO=10) — `src/test/java/com/um/catalogsync/integration/domain/model/ProvisioningStatusTest.java`
-- clase 'IntegrationConfigTest' muy acoplada (CBO=18) — `src/test/java/com/um/catalogsync/integration/domain/model/IntegrationConfigTest.java`
-- clase 'WeeklyScheduleMapperTest' muy acoplada (CBO=17) — `src/test/java/com/um/catalogsync/schedule/infrastructure/persistence/mapper/WeeklyScheduleMapperTest.java`
-- clase 'JpaWeeklyScheduleRepositoryAdapterTest' muy acoplada (CBO=54) — `src/test/java/com/um/catalogsync/schedule/infrastructure/persistence/adapter/JpaWeeklyScheduleRepositoryAdapterTest.java`
-- clase 'AgendaOpenApiContractTest' muy acoplada (CBO=21) — `src/test/java/com/um/catalogsync/schedule/infrastructure/web/AgendaOpenApiContractTest.java`
-- clase 'CurrentAgendaApiIntegrationTest' muy acoplada (CBO=58) — `src/test/java/com/um/catalogsync/schedule/infrastructure/web/CurrentAgendaApiIntegrationTest.java`
-- clase 'CurrentAgendaApiIntegrationTest' instancia 3 concretos (CBO=58) — `src/test/java/com/um/catalogsync/schedule/infrastructure/web/CurrentAgendaApiIntegrationTest.java`
-- clase 'CopiaSincronizada' muy acoplada (CBO=12) — `src/test/java/com/um/catalogsync/schedule/infrastructure/web/CurrentAgendaApiIntegrationTest.java`
-- clase 'Errores' muy acoplada (CBO=10) — `src/test/java/com/um/catalogsync/schedule/infrastructure/web/CurrentAgendaApiIntegrationTest.java`
-- clase 'Autorizacion' muy acoplada (CBO=9) — `src/test/java/com/um/catalogsync/schedule/infrastructure/web/CurrentAgendaApiIntegrationTest.java`
-- clase 'WeeklyScheduleServiceTest' muy acoplada (CBO=13) — `src/test/java/com/um/catalogsync/schedule/application/service/WeeklyScheduleServiceTest.java`
-- clase 'GetSchedulesByProfessionalUseCaseImplTest' muy acoplada (CBO=13) — `src/test/java/com/um/catalogsync/schedule/application/usecases/GetSchedulesByProfessionalUseCaseImplTest.java`
-- clase 'GetSchedulesByProfessionalUseCaseImplTest' instancia 9 concretos (CBO=13) — `src/test/java/com/um/catalogsync/schedule/application/usecases/GetSchedulesByProfessionalUseCaseImplTest.java`
-- clase 'GetCurrentAgendaUseCaseImplTest' muy acoplada (CBO=29) — `src/test/java/com/um/catalogsync/schedule/application/usecases/GetCurrentAgendaUseCaseImplTest.java`
-- clase 'GetCurrentAgendaUseCaseImplTest' instancia 16 concretos (CBO=29) — `src/test/java/com/um/catalogsync/schedule/application/usecases/GetCurrentAgendaUseCaseImplTest.java`
-- clase 'AvailabilityCriteriaTest' muy acoplada (CBO=18) — `src/test/java/com/um/catalogsync/schedule/domain/model/AvailabilityCriteriaTest.java`
-- clase 'FormasInvalidas' muy acoplada (CBO=12) — `src/test/java/com/um/catalogsync/schedule/domain/model/AvailabilityCriteriaTest.java`
-- clase 'TimeOfDayTest' muy acoplada (CBO=12) — `src/test/java/com/um/catalogsync/schedule/domain/model/TimeOfDayTest.java`
-- clase 'DayOfWeekTest' muy acoplada (CBO=17) — `src/test/java/com/um/catalogsync/schedule/domain/model/DayOfWeekTest.java`
-- clase 'WeeklyScheduleTest' muy acoplada (CBO=13) — `src/test/java/com/um/catalogsync/schedule/domain/model/WeeklyScheduleTest.java`
 
-**SRP/responsabilidad** (167)
+**SRP/responsabilidad** (51)
 - clase 'JpaProfessionalRepositoryAdapter' grande (LOC=142, métodos=12, campos=6) — `src/main/java/com/um/catalogsync/professional/infrastructure/persistence/adapter/JpaProfessionalRepositoryAdapter.java`
 - clase 'JpaProfessionalRepositoryAdapter' con baja cohesión (27%) — `src/main/java/com/um/catalogsync/professional/infrastructure/persistence/adapter/JpaProfessionalRepositoryAdapter.java`
 - clase 'ProfessionalEntity' grande (LOC=28, métodos=0, campos=8) — `src/main/java/com/um/catalogsync/professional/infrastructure/persistence/entity/ProfessionalEntity.java`
-- clase 'ProfessionalEntity' sin métodos (8 campos): solo datos — `src/main/java/com/um/catalogsync/professional/infrastructure/persistence/entity/ProfessionalEntity.java`
 - clase 'ProfessionalService' con baja cohesión (30%) — `src/main/java/com/um/catalogsync/professional/application/service/ProfessionalService.java`
 - clase 'Professional' sin métodos (7 campos): solo datos — `src/main/java/com/um/catalogsync/professional/domain/model/Professional.java`
 - clase 'PublishedCatalogKeys' grande (LOC=36, métodos=2, campos=8) — `src/main/java/com/um/catalogsync/sync/infrastructure/redis/PublishedCatalogKeys.java`
@@ -415,11 +249,7 @@ El análisis encontró las siguientes señales (archivo, sin número de línea a
 - clase 'PublishedCatalogMapper' grande (LOC=127, métodos=12, campos=5) — `src/main/java/com/um/catalogsync/sync/infrastructure/redis/mapper/PublishedCatalogMapper.java`
 - clase 'PublishedCatalogMapper' con baja cohesión (17%) — `src/main/java/com/um/catalogsync/sync/infrastructure/redis/mapper/PublishedCatalogMapper.java`
 - clase 'JpaSyncRunRepositoryAdapter' grande (LOC=154, métodos=10, campos=5) — `src/main/java/com/um/catalogsync/sync/infrastructure/persistence/adapter/JpaSyncRunRepositoryAdapter.java`
-- clase 'CatalogVersionEntity' sin métodos (5 campos): solo datos — `src/main/java/com/um/catalogsync/sync/infrastructure/persistence/entity/CatalogVersionEntity.java`
-- clase 'SyncErrorEntity' sin métodos (5 campos): solo datos — `src/main/java/com/um/catalogsync/sync/infrastructure/persistence/entity/SyncErrorEntity.java`
-- clase 'ProcessedEventEntity' sin métodos (6 campos): solo datos — `src/main/java/com/um/catalogsync/sync/infrastructure/persistence/entity/ProcessedEventEntity.java`
 - clase 'SyncRunEntity' grande (LOC=31, métodos=0, campos=9) — `src/main/java/com/um/catalogsync/sync/infrastructure/persistence/entity/SyncRunEntity.java`
-- clase 'SyncRunEntity' sin métodos (9 campos): solo datos — `src/main/java/com/um/catalogsync/sync/infrastructure/persistence/entity/SyncRunEntity.java`
 - clase 'CatalogUpdatedConsumer' con baja cohesión (40%) — `src/main/java/com/um/catalogsync/sync/infrastructure/messaging/CatalogUpdatedConsumer.java`
 - método 'CatalogUpdatedConsumer.construir' de 31 líneas — `src/main/java/com/um/catalogsync/sync/infrastructure/messaging/CatalogUpdatedConsumer.java`
 - clase 'CatalogUpdatedMapper' con baja cohesión (7%) — `src/main/java/com/um/catalogsync/sync/infrastructure/messaging/mapper/CatalogUpdatedMapper.java`
@@ -437,7 +267,6 @@ El análisis encontró las siguientes señales (archivo, sin número de línea a
 - clase 'CatalogUpdatedEvent' sin métodos (5 campos): solo datos — `src/main/java/com/um/catalogsync/sync/domain/model/CatalogUpdatedEvent.java`
 - clase 'SyncError' sin métodos (4 campos): solo datos — `src/main/java/com/um/catalogsync/sync/domain/model/SyncError.java`
 - método 'SyncStatusReport.health' con complejidad 6 — `src/main/java/com/um/catalogsync/sync/domain/model/SyncStatusReport.java`
-- clase 'ProfessionalCategoryEntity' sin métodos (6 campos): solo datos — `src/main/java/com/um/catalogsync/category/infrastructure/persistence/entity/ProfessionalCategoryEntity.java`
 - clase 'ProfessionalCategory' sin métodos (6 campos): solo datos — `src/main/java/com/um/catalogsync/category/domain/model/ProfessionalCategory.java`
 - clase 'SecurityConfig' grande (LOC=235, métodos=7, campos=8) — `src/main/java/com/um/catalogsync/shared/infrastructure/security/SecurityConfig.java`
 - clase 'SecurityConfig' con baja cohesión (38%) — `src/main/java/com/um/catalogsync/shared/infrastructure/security/SecurityConfig.java`
@@ -454,121 +283,11 @@ El análisis encontró las siguientes señales (archivo, sin número de línea a
 - clase 'JpaWeeklyScheduleRepositoryAdapter' grande (LOC=115, métodos=13, campos=4) — `src/main/java/com/um/catalogsync/schedule/infrastructure/persistence/adapter/JpaWeeklyScheduleRepositoryAdapter.java`
 - clase 'JpaWeeklyScheduleRepositoryAdapter' con baja cohesión (31%) — `src/main/java/com/um/catalogsync/schedule/infrastructure/persistence/adapter/JpaWeeklyScheduleRepositoryAdapter.java`
 - clase 'WeeklyScheduleEntity' grande (LOC=47, métodos=0, campos=9) — `src/main/java/com/um/catalogsync/schedule/infrastructure/persistence/entity/WeeklyScheduleEntity.java`
-- clase 'WeeklyScheduleEntity' sin métodos (9 campos): solo datos — `src/main/java/com/um/catalogsync/schedule/infrastructure/persistence/entity/WeeklyScheduleEntity.java`
 - clase 'AvailabilityCriteria' grande (LOC=150, métodos=10, campos=0) — `src/main/java/com/um/catalogsync/schedule/domain/model/AvailabilityCriteria.java`
 - método 'AvailabilityCriteria.AvailabilityCriteria' de 150 líneas — `src/main/java/com/um/catalogsync/schedule/domain/model/AvailabilityCriteria.java`
 - método 'AvailabilityCriteria.AvailabilityCriteria' con complejidad 12 — `src/main/java/com/um/catalogsync/schedule/domain/model/AvailabilityCriteria.java`
 - clase 'WeeklySchedule' grande (LOC=28, métodos=0, campos=10) — `src/main/java/com/um/catalogsync/schedule/domain/model/WeeklySchedule.java`
 - clase 'WeeklySchedule' sin métodos (10 campos): solo datos — `src/main/java/com/um/catalogsync/schedule/domain/model/WeeklySchedule.java`
-- clase 'JpaProfessionalRepositoryAdapterTest' grande (LOC=172, métodos=15, campos=8) — `src/test/java/com/um/catalogsync/professional/infrastructure/persistence/adapter/JpaProfessionalRepositoryAdapterTest.java`
-- clase 'ProfessionalSearchQueryTest' grande (LOC=214, métodos=20, campos=6) — `src/test/java/com/um/catalogsync/professional/infrastructure/persistence/adapter/ProfessionalSearchQueryTest.java`
-- clase 'ProfessionalSearchQueryTest' con baja cohesión (5%) — `src/test/java/com/um/catalogsync/professional/infrastructure/persistence/adapter/ProfessionalSearchQueryTest.java`
-- clase 'ProfessionalAvailabilityQueryTest' grande (LOC=228, métodos=18, campos=8) — `src/test/java/com/um/catalogsync/professional/infrastructure/persistence/adapter/ProfessionalAvailabilityQueryTest.java`
-- clase 'ProfessionalAvailabilityQueryTest' con baja cohesión (8%) — `src/test/java/com/um/catalogsync/professional/infrastructure/persistence/adapter/ProfessionalAvailabilityQueryTest.java`
-- clase 'ProfessionalSearchApiIntegrationTest' grande (LOC=414, métodos=36, campos=13) — `src/test/java/com/um/catalogsync/professional/infrastructure/web/ProfessionalSearchApiIntegrationTest.java`
-- clase 'ProfessionalSearchApiIntegrationTest' con baja cohesión (5%) — `src/test/java/com/um/catalogsync/professional/infrastructure/web/ProfessionalSearchApiIntegrationTest.java`
-- clase 'ProfessionalSearchCriteriaTest' grande (LOC=88, métodos=10, campos=1) — `src/test/java/com/um/catalogsync/professional/domain/model/ProfessionalSearchCriteriaTest.java`
-- clase 'CatalogSnapshotFixtures' grande (LOC=122, métodos=12, campos=3) — `src/test/java/com/um/catalogsync/sync/CatalogSnapshotFixtures.java`
-- clase 'SyncRecoveryEndToEndTest' grande (LOC=522, métodos=48, campos=24) — `src/test/java/com/um/catalogsync/sync/SyncRecoveryEndToEndTest.java`
-- clase 'SyncRecoveryEndToEndTest' con baja cohesión (11%) — `src/test/java/com/um/catalogsync/sync/SyncRecoveryEndToEndTest.java`
-- método 'SyncRecoveryEndToEndTest.laCaidaEntrePersistirYConfirmarNoDuplicaEfectos' de 32 líneas — `src/test/java/com/um/catalogsync/sync/SyncRecoveryEndToEndTest.java`
-- método 'SyncRecoveryEndToEndTest.dosVersionesPendientesDejanLaLocalEnLaUltima' de 35 líneas — `src/test/java/com/um/catalogsync/sync/SyncRecoveryEndToEndTest.java`
-- método 'SyncRecoveryEndToEndTest.noSeSalteaLaVersionQueFalta' de 30 líneas — `src/test/java/com/um/catalogsync/sync/SyncRecoveryEndToEndTest.java`
-- método 'SyncRecoveryEndToEndTest.elReinicioRecuperaElAtraso' de 37 líneas — `src/test/java/com/um/catalogsync/sync/SyncRecoveryEndToEndTest.java`
-- método 'Idempotencia.laCaidaEntrePersistirYConfirmarNoDuplicaEfectos' de 32 líneas — `src/test/java/com/um/catalogsync/sync/SyncRecoveryEndToEndTest.java`
-- método 'OrdenDeLasVersiones.dosVersionesPendientesDejanLaLocalEnLaUltima' de 35 líneas — `src/test/java/com/um/catalogsync/sync/SyncRecoveryEndToEndTest.java`
-- método 'OrdenDeLasVersiones.noSeSalteaLaVersionQueFalta' de 30 líneas — `src/test/java/com/um/catalogsync/sync/SyncRecoveryEndToEndTest.java`
-- método 'ReinicioConUnaSincronizacionAMedias.elReinicioRecuperaElAtraso' de 37 líneas — `src/test/java/com/um/catalogsync/sync/SyncRecoveryEndToEndTest.java`
-- clase 'ReconciliationIntegrationTest' grande (LOC=123, métodos=16, campos=6) — `src/test/java/com/um/catalogsync/sync/ReconciliationIntegrationTest.java`
-- clase 'ReconciliationIntegrationTest' con baja cohesión (9%) — `src/test/java/com/um/catalogsync/sync/ReconciliationIntegrationTest.java`
-- clase 'FullSyncIntegrationTest' grande (LOC=235, métodos=23, campos=8) — `src/test/java/com/um/catalogsync/sync/FullSyncIntegrationTest.java`
-- clase 'FullSyncIntegrationTest' con baja cohesión (20%) — `src/test/java/com/um/catalogsync/sync/FullSyncIntegrationTest.java`
-- clase 'FullSyncEndToEndTest' grande (LOC=392, métodos=26, campos=20) — `src/test/java/com/um/catalogsync/sync/FullSyncEndToEndTest.java`
-- clase 'FullSyncEndToEndTest' con baja cohesión (24%) — `src/test/java/com/um/catalogsync/sync/FullSyncEndToEndTest.java`
-- método 'FullSyncEndToEndTest.baseVaciaQuedaSincronizada' de 40 líneas — `src/test/java/com/um/catalogsync/sync/FullSyncEndToEndTest.java`
-- método 'FullSyncEndToEndTest.elFalloAMitadNoAvanzaLaVersion' de 34 líneas — `src/test/java/com/um/catalogsync/sync/FullSyncEndToEndTest.java`
-- método 'FullSyncEndToEndTest.catalogoDeLaCatedra' de 56 líneas — `src/test/java/com/um/catalogsync/sync/FullSyncEndToEndTest.java`
-- clase 'IncrementalSyncIntegrationTest' grande (LOC=156, métodos=16, campos=7) — `src/test/java/com/um/catalogsync/sync/IncrementalSyncIntegrationTest.java`
-- clase 'IncrementalSyncIntegrationTest' con baja cohesión (22%) — `src/test/java/com/um/catalogsync/sync/IncrementalSyncIntegrationTest.java`
-- clase 'PublishedCatalogFixtures' con baja cohesión (0%) — `src/test/java/com/um/catalogsync/sync/infrastructure/redis/PublishedCatalogFixtures.java`
-- clase 'CatedraRedisForTests' con baja cohesión (14%) — `src/test/java/com/um/catalogsync/sync/infrastructure/redis/CatedraRedisForTests.java`
-- clase 'CatalogChangesMapperTest' grande (LOC=170, métodos=14, campos=3) — `src/test/java/com/um/catalogsync/sync/infrastructure/redis/mapper/CatalogChangesMapperTest.java`
-- clase 'PublishedCatalogMapperTest' grande (LOC=162, métodos=14, campos=1) — `src/test/java/com/um/catalogsync/sync/infrastructure/redis/mapper/PublishedCatalogMapperTest.java`
-- clase 'RedisCatalogChangesAdapterTest' grande (LOC=158, métodos=17, campos=4) — `src/test/java/com/um/catalogsync/sync/infrastructure/redis/adapter/RedisCatalogChangesAdapterTest.java`
-- clase 'RedisPublishedCatalogAdapterTest' grande (LOC=261, métodos=33, campos=4) — `src/test/java/com/um/catalogsync/sync/infrastructure/redis/adapter/RedisPublishedCatalogAdapterTest.java`
-- clase 'RedisPublishedCatalogAdapterTest' con baja cohesión (34%) — `src/test/java/com/um/catalogsync/sync/infrastructure/redis/adapter/RedisPublishedCatalogAdapterTest.java`
-- método 'RedisPublishedCatalogAdapterTest.leeLasTresEntidades' de 30 líneas — `src/test/java/com/um/catalogsync/sync/infrastructure/redis/adapter/RedisPublishedCatalogAdapterTest.java`
-- clase 'InitialSyncOnStartupIntegrationTest' grande (LOC=180, métodos=19, campos=8) — `src/test/java/com/um/catalogsync/sync/infrastructure/startup/InitialSyncOnStartupIntegrationTest.java`
-- clase 'InitialSyncOnStartupIntegrationTest' con baja cohesión (11%) — `src/test/java/com/um/catalogsync/sync/infrastructure/startup/InitialSyncOnStartupIntegrationTest.java`
-- clase 'InitialCatalogSyncRunnerTest' grande (LOC=128, métodos=14, campos=1) — `src/test/java/com/um/catalogsync/sync/infrastructure/startup/InitialCatalogSyncRunnerTest.java`
-- clase 'JpaProcessedEventRepositoryAdapterTest' grande (LOC=102, métodos=10, campos=3) — `src/test/java/com/um/catalogsync/sync/infrastructure/persistence/adapter/JpaProcessedEventRepositoryAdapterTest.java`
-- clase 'JpaProcessedEventRepositoryAdapterTest' con baja cohesión (49%) — `src/test/java/com/um/catalogsync/sync/infrastructure/persistence/adapter/JpaProcessedEventRepositoryAdapterTest.java`
-- clase 'JpaCatalogVersionRepositoryAdapterTest' grande (LOC=255, métodos=20, campos=5) — `src/test/java/com/um/catalogsync/sync/infrastructure/persistence/adapter/JpaCatalogVersionRepositoryAdapterTest.java`
-- método 'JpaCatalogVersionRepositoryAdapterTest.extracting' de 36 líneas — `src/test/java/com/um/catalogsync/sync/infrastructure/persistence/adapter/JpaCatalogVersionRepositoryAdapterTest.java`
-- método 'JpaCatalogVersionRepositoryAdapterTest.extracting' con complejidad 6 — `src/test/java/com/um/catalogsync/sync/infrastructure/persistence/adapter/JpaCatalogVersionRepositoryAdapterTest.java`
-- método 'JpaCatalogVersionRepositoryAdapterTest.enParalelo' con complejidad 6 — `src/test/java/com/um/catalogsync/sync/infrastructure/persistence/adapter/JpaCatalogVersionRepositoryAdapterTest.java`
-- clase 'JpaSyncRunRepositoryAdapterTest' grande (LOC=277, métodos=27, campos=4) — `src/test/java/com/um/catalogsync/sync/infrastructure/persistence/adapter/JpaSyncRunRepositoryAdapterTest.java`
-- clase 'SyncMetricsTest' grande (LOC=107, métodos=11, campos=2) — `src/test/java/com/um/catalogsync/sync/infrastructure/metrics/SyncMetricsTest.java`
-- clase 'CatalogUpdatedConsumerIntegrationTest' grande (LOC=243, métodos=26, campos=6) — `src/test/java/com/um/catalogsync/sync/infrastructure/messaging/CatalogUpdatedConsumerIntegrationTest.java`
-- clase 'CatalogUpdatedConsumerIntegrationTest' con baja cohesión (20%) — `src/test/java/com/um/catalogsync/sync/infrastructure/messaging/CatalogUpdatedConsumerIntegrationTest.java`
-- clase 'CatalogUpdatedFixtures' con baja cohesión (0%) — `src/test/java/com/um/catalogsync/sync/infrastructure/messaging/CatalogUpdatedFixtures.java`
-- clase 'CatalogUpdatedListenerTest' grande (LOC=88, métodos=8, campos=8) — `src/test/java/com/um/catalogsync/sync/infrastructure/messaging/CatalogUpdatedListenerTest.java`
-- clase 'CatalogUpdatedListenerTest' con baja cohesión (29%) — `src/test/java/com/um/catalogsync/sync/infrastructure/messaging/CatalogUpdatedListenerTest.java`
-- clase 'CatalogUpdatedMapperTest' grande (LOC=139, métodos=13, campos=2) — `src/test/java/com/um/catalogsync/sync/infrastructure/messaging/mapper/CatalogUpdatedMapperTest.java`
-- clase 'SnapshotFixtures' con baja cohesión (0%) — `src/test/java/com/um/catalogsync/sync/infrastructure/client/SnapshotFixtures.java`
-- método 'SnapshotFixtures.snapshotDeLaReferencia' de 42 líneas — `src/test/java/com/um/catalogsync/sync/infrastructure/client/SnapshotFixtures.java`
-- método 'SnapshotFixtures.snapshotDeLaReferencia' de 86 líneas — `src/test/java/com/um/catalogsync/sync/infrastructure/client/SnapshotFixtures.java`
-- método 'SnapshotFixtures.snapshotConEntidadesDeshabilitadas' de 72 líneas — `src/test/java/com/um/catalogsync/sync/infrastructure/client/SnapshotFixtures.java`
-- clase 'CatalogSnapshotMapperTest' grande (LOC=221, métodos=26, campos=4) — `src/test/java/com/um/catalogsync/sync/infrastructure/client/mapper/CatalogSnapshotMapperTest.java`
-- clase 'RestCatalogSnapshotAdapterTest' grande (LOC=221, métodos=22, campos=2) — `src/test/java/com/um/catalogsync/sync/infrastructure/client/adapter/RestCatalogSnapshotAdapterTest.java`
-- clase 'CatalogReconciliationJobTest' grande (LOC=91, métodos=11, campos=1) — `src/test/java/com/um/catalogsync/sync/infrastructure/reconciliation/CatalogReconciliationJobTest.java`
-- clase 'ProcessedEventRetentionJobTest' grande (LOC=81, métodos=11, campos=2) — `src/test/java/com/um/catalogsync/sync/infrastructure/retention/ProcessedEventRetentionJobTest.java`
-- clase 'SyncHistoryRetentionJobTest' grande (LOC=83, métodos=12, campos=2) — `src/test/java/com/um/catalogsync/sync/infrastructure/retention/SyncHistoryRetentionJobTest.java`
-- clase 'SyncStatusApiIntegrationTest' grande (LOC=234, métodos=20, campos=7) — `src/test/java/com/um/catalogsync/sync/infrastructure/web/SyncStatusApiIntegrationTest.java`
-- clase 'SyncStatusApiIntegrationTest' con baja cohesión (11%) — `src/test/java/com/um/catalogsync/sync/infrastructure/web/SyncStatusApiIntegrationTest.java`
-- clase 'CatalogSyncServiceTest' con baja cohesión (14%) — `src/test/java/com/um/catalogsync/sync/application/service/CatalogSyncServiceTest.java`
-- clase 'HandleCatalogUpdatedUseCaseImplTest' grande (LOC=128, métodos=14, campos=5) — `src/test/java/com/um/catalogsync/sync/application/usecases/HandleCatalogUpdatedUseCaseImplTest.java`
-- clase 'HandleCatalogUpdatedUseCaseImplTest' con baja cohesión (14%) — `src/test/java/com/um/catalogsync/sync/application/usecases/HandleCatalogUpdatedUseCaseImplTest.java`
-- clase 'ApplyCatalogSnapshotUseCaseImplTest' grande (LOC=174, métodos=27, campos=5) — `src/test/java/com/um/catalogsync/sync/application/usecases/ApplyCatalogSnapshotUseCaseImplTest.java`
-- clase 'ApplyCatalogSnapshotUseCaseImplTest' con baja cohesión (11%) — `src/test/java/com/um/catalogsync/sync/application/usecases/ApplyCatalogSnapshotUseCaseImplTest.java`
-- clase 'GetSyncStatusUseCaseImplTest' grande (LOC=207, métodos=28, campos=11) — `src/test/java/com/um/catalogsync/sync/application/usecases/GetSyncStatusUseCaseImplTest.java`
-- clase 'GetSyncStatusUseCaseImplTest' con baja cohesión (15%) — `src/test/java/com/um/catalogsync/sync/application/usecases/GetSyncStatusUseCaseImplTest.java`
-- clase 'Historial' con baja cohesión (10%) — `src/test/java/com/um/catalogsync/sync/application/usecases/GetSyncStatusUseCaseImplTest.java`
-- clase 'Origen' con baja cohesión (14%) — `src/test/java/com/um/catalogsync/sync/application/usecases/GetSyncStatusUseCaseImplTest.java`
-- clase 'ApplyCatalogVersionUseCaseImplTest' grande (LOC=211, métodos=26, campos=6) — `src/test/java/com/um/catalogsync/sync/application/usecases/ApplyCatalogVersionUseCaseImplTest.java`
-- clase 'ApplyCatalogVersionUseCaseImplTest' con baja cohesión (37%) — `src/test/java/com/um/catalogsync/sync/application/usecases/ApplyCatalogVersionUseCaseImplTest.java`
-- método 'ApplyCatalogVersionUseCaseImplTest.removedScheduleIds' de 31 líneas — `src/test/java/com/um/catalogsync/sync/application/usecases/ApplyCatalogVersionUseCaseImplTest.java`
-- clase 'RunFullSyncUseCaseImplTest' grande (LOC=232, métodos=24, campos=5) — `src/test/java/com/um/catalogsync/sync/application/usecases/RunFullSyncUseCaseImplTest.java`
-- clase 'RunFullSyncUseCaseImplTest' con baja cohesión (10%) — `src/test/java/com/um/catalogsync/sync/application/usecases/RunFullSyncUseCaseImplTest.java`
-- clase 'CorridasQueRegistran' con baja cohesión (21%) — `src/test/java/com/um/catalogsync/sync/application/usecases/RunFullSyncUseCaseImplTest.java`
-- clase 'SynchronizeCatalogUseCaseImplTest' grande (LOC=345, métodos=30, campos=12) — `src/test/java/com/um/catalogsync/sync/application/usecases/SynchronizeCatalogUseCaseImplTest.java`
-- clase 'SynchronizeCatalogUseCaseImplTest' con baja cohesión (38%) — `src/test/java/com/um/catalogsync/sync/application/usecases/SynchronizeCatalogUseCaseImplTest.java`
-- clase 'ApplyIncrementalChangesUseCaseImplTest' grande (LOC=252, métodos=25, campos=12) — `src/test/java/com/um/catalogsync/sync/application/usecases/ApplyIncrementalChangesUseCaseImplTest.java`
-- clase 'ApplyIncrementalChangesUseCaseImplTest' con baja cohesión (36%) — `src/test/java/com/um/catalogsync/sync/application/usecases/ApplyIncrementalChangesUseCaseImplTest.java`
-- clase 'CatalogoPublicadoEnMemoria' con baja cohesión (7%) — `src/test/java/com/um/catalogsync/sync/application/usecases/ApplyIncrementalChangesUseCaseImplTest.java`
-- clase 'SyncStatusReportTest' grande (LOC=156, métodos=20, campos=1) — `src/test/java/com/um/catalogsync/sync/domain/model/SyncStatusReportTest.java`
-- clase 'JpaCategoryRepositoryAdapterTest' grande (LOC=112, métodos=10, campos=4) — `src/test/java/com/um/catalogsync/category/infrastructure/persistence/adapter/JpaCategoryRepositoryAdapterTest.java`
-- clase 'TokensDePrueba' con baja cohesión (33%) — `src/test/java/com/um/catalogsync/shared/infrastructure/security/TokensDePrueba.java`
-- clase 'ApiSecurityIntegrationTest' grande (LOC=208, métodos=21, campos=5) — `src/test/java/com/um/catalogsync/shared/infrastructure/security/ApiSecurityIntegrationTest.java`
-- clase 'ApiSecurityIntegrationTest' con baja cohesión (17%) — `src/test/java/com/um/catalogsync/shared/infrastructure/security/ApiSecurityIntegrationTest.java`
-- clase 'ApiSecurityPropertiesTest' grande (LOC=97, métodos=11, campos=1) — `src/test/java/com/um/catalogsync/shared/infrastructure/security/ApiSecurityPropertiesTest.java`
-- clase 'ApiDeSoloLecturaTest' con baja cohesión (20%) — `src/test/java/com/um/catalogsync/shared/infrastructure/web/ApiDeSoloLecturaTest.java`
-- clase 'IntegrationFixtures' grande (LOC=129, métodos=10, campos=5) — `src/test/java/com/um/catalogsync/integration/IntegrationFixtures.java`
-- clase 'IntegrationFixtures' con baja cohesión (13%) — `src/test/java/com/um/catalogsync/integration/IntegrationFixtures.java`
-- clase 'SecretosNoSeFiltranTest' grande (LOC=180, métodos=20, campos=5) — `src/test/java/com/um/catalogsync/integration/SecretosNoSeFiltranTest.java`
-- clase 'SecretosNoSeFiltranTest' con baja cohesión (17%) — `src/test/java/com/um/catalogsync/integration/SecretosNoSeFiltranTest.java`
-- clase 'RestTechnicalAuthAdapterTest' grande (LOC=126, métodos=14, campos=2) — `src/test/java/com/um/catalogsync/integration/infrastructure/client/adapter/RestTechnicalAuthAdapterTest.java`
-- clase 'JpaWeeklyScheduleRepositoryAdapterTest' grande (LOC=255, métodos=22, campos=10) — `src/test/java/com/um/catalogsync/schedule/infrastructure/persistence/adapter/JpaWeeklyScheduleRepositoryAdapterTest.java`
-- clase 'AgendaOpenApiContractTest' grande (LOC=85, métodos=10, campos=5) — `src/test/java/com/um/catalogsync/schedule/infrastructure/web/AgendaOpenApiContractTest.java`
-- clase 'CurrentAgendaApiIntegrationTest' grande (LOC=222, métodos=23, campos=10) — `src/test/java/com/um/catalogsync/schedule/infrastructure/web/CurrentAgendaApiIntegrationTest.java`
-- clase 'CurrentAgendaApiIntegrationTest' con baja cohesión (27%) — `src/test/java/com/um/catalogsync/schedule/infrastructure/web/CurrentAgendaApiIntegrationTest.java`
-- clase 'GetSchedulesByProfessionalUseCaseImplTest' grande (LOC=65, métodos=11, campos=0) — `src/test/java/com/um/catalogsync/schedule/application/usecases/GetSchedulesByProfessionalUseCaseImplTest.java`
-- método 'GetSchedulesByProfessionalUseCaseImplTest.WeeklyScheduleRepository' de 30 líneas — `src/test/java/com/um/catalogsync/schedule/application/usecases/GetSchedulesByProfessionalUseCaseImplTest.java`
-- clase 'GetCurrentAgendaUseCaseImplTest' grande (LOC=189, métodos=34, campos=1) — `src/test/java/com/um/catalogsync/schedule/application/usecases/GetCurrentAgendaUseCaseImplTest.java`
-- método 'GetCurrentAgendaUseCaseImplTest.assertThatThrownBy' de 32 líneas — `src/test/java/com/um/catalogsync/schedule/application/usecases/GetCurrentAgendaUseCaseImplTest.java`
-- método 'GetCurrentAgendaUseCaseImplTest.horariosQueDevuelven' de 32 líneas — `src/test/java/com/um/catalogsync/schedule/application/usecases/GetCurrentAgendaUseCaseImplTest.java`
-- método 'GetCurrentAgendaUseCaseImplTest.WeeklyScheduleRepository' de 30 líneas — `src/test/java/com/um/catalogsync/schedule/application/usecases/GetCurrentAgendaUseCaseImplTest.java`
-- clase 'AvailabilityCriteriaTest' grande (LOC=127, métodos=13, campos=0) — `src/test/java/com/um/catalogsync/schedule/domain/model/AvailabilityCriteriaTest.java`
 
 **OCP/type-switch** (4)
 - clase 'JpaProfessionalRepositoryAdapter' con 1 type-checks — `src/main/java/com/um/catalogsync/professional/infrastructure/persistence/adapter/JpaProfessionalRepositoryAdapter.java`
@@ -576,33 +295,13 @@ El análisis encontró las siguientes señales (archivo, sin número de línea a
 - clase 'Secret' con 1 type-checks — `src/main/java/com/um/catalogsync/shared/domain/model/Secret.java`
 - clase 'JpaWeeklyScheduleRepositoryAdapter' con 1 type-checks — `src/main/java/com/um/catalogsync/schedule/infrastructure/persistence/adapter/JpaWeeklyScheduleRepositoryAdapter.java`
 
-**LSP/overrides** (17)
+**LSP/overrides** (2)
 - 'JpaProfessionalRepositoryAdapter.replaceAll' vacío o 'no implementado' — `src/main/java/com/um/catalogsync/professional/infrastructure/persistence/adapter/JpaProfessionalRepositoryAdapter.java`
 - 'JpaWeeklyScheduleRepositoryAdapter.replaceAll' vacío o 'no implementado' — `src/main/java/com/um/catalogsync/schedule/infrastructure/persistence/adapter/JpaWeeklyScheduleRepositoryAdapter.java`
-- 'SyncRecoveryEndToEndTest.laRelecturaCompletaNoCambiaElEstado' vacío o 'no implementado' — `src/test/java/com/um/catalogsync/sync/SyncRecoveryEndToEndTest.java`
-- 'SyncRecoveryEndToEndTest.await' vacío o 'no implementado' — `src/test/java/com/um/catalogsync/sync/SyncRecoveryEndToEndTest.java`
-- 'Idempotencia.laRelecturaCompletaNoCambiaElEstado' vacío o 'no implementado' — `src/test/java/com/um/catalogsync/sync/SyncRecoveryEndToEndTest.java`
-- 'FullSyncIntegrationTest.aplicaUnSnapshotVacio' vacío o 'no implementado' — `src/test/java/com/um/catalogsync/sync/FullSyncIntegrationTest.java`
-- 'FullSyncIntegrationTest.elFalloEnHorariosNoDejaRastro' vacío o 'no implementado' — `src/test/java/com/um/catalogsync/sync/FullSyncIntegrationTest.java`
-- 'FullSyncEndToEndTest.elLoginTecnicoFirmaElPedidoDelSnapshot' vacío o 'no implementado' — `src/test/java/com/um/catalogsync/sync/FullSyncEndToEndTest.java`
-- 'FullSyncEndToEndTest.elFalloAMitadNoAvanzaLaVersion' vacío o 'no implementado' — `src/test/java/com/um/catalogsync/sync/FullSyncEndToEndTest.java`
-- 'FullSyncEndToEndTest.ningunaBusquedaHablaConLaCatedra' vacío o 'no implementado' — `src/test/java/com/um/catalogsync/sync/FullSyncEndToEndTest.java`
-- 'InitialCatalogSyncRunnerTest.conLaCatedraCaidaNoTumbaElServicio' vacío o 'no implementado' — `src/test/java/com/um/catalogsync/sync/infrastructure/startup/InitialCatalogSyncRunnerTest.java`
-- 'JpaSyncRunRepositoryAdapterTest.laUltimaEsLaQueArranco' vacío o 'no implementado' — `src/test/java/com/um/catalogsync/sync/infrastructure/persistence/adapter/JpaSyncRunRepositoryAdapterTest.java`
-- 'CatalogUpdatedConsumerIntegrationTest.relecturaCompletaSinEfectos' vacío o 'no implementado' — `src/test/java/com/um/catalogsync/sync/infrastructure/messaging/CatalogUpdatedConsumerIntegrationTest.java`
-- 'ProcessedEventRetentionJobTest.retencionInvalida' vacío o 'no implementado' — `src/test/java/com/um/catalogsync/sync/infrastructure/retention/ProcessedEventRetentionJobTest.java`
-- 'GetSyncStatusUseCaseImplTest.loQueNoEsDelOrigenSePropaga' vacío o 'no implementado' — `src/test/java/com/um/catalogsync/sync/application/usecases/GetSyncStatusUseCaseImplTest.java`
-- 'RestTechnicalAuthAdapterTest.elPedidoRespetaElContrato' vacío o 'no implementado' — `src/test/java/com/um/catalogsync/integration/infrastructure/client/adapter/RestTechnicalAuthAdapterTest.java`
-- 'IntegrationConfigTest.sinHabilitarNoSeReclamaLaClave' vacío o 'no implementado' — `src/test/java/com/um/catalogsync/integration/domain/model/IntegrationConfigTest.java`
 
-**POO** (7)
+**POO** (2)
 - función 'toCriteria' fuera de una clase — `src/main/java/com/um/catalogsync/professional/infrastructure/web/dto/ProfessionalSearchRequest.java`
 - clase 'PublishedCatalogKeys' con 8 campos públicos (encapsulación) — `src/main/java/com/um/catalogsync/sync/infrastructure/redis/PublishedCatalogKeys.java`
-- clase 'PublishedCatalogFixtures' con 6 campos públicos (encapsulación) — `src/test/java/com/um/catalogsync/sync/infrastructure/redis/PublishedCatalogFixtures.java`
-- clase 'CatalogUpdatedFixtures' con 5 campos públicos (encapsulación) — `src/test/java/com/um/catalogsync/sync/infrastructure/messaging/CatalogUpdatedFixtures.java`
-- clase 'SnapshotFixtures' con 5 campos públicos (encapsulación) — `src/test/java/com/um/catalogsync/sync/infrastructure/client/SnapshotFixtures.java`
-- clase 'TokensDePrueba' con 4 campos públicos (encapsulación) — `src/test/java/com/um/catalogsync/shared/infrastructure/security/TokensDePrueba.java`
-- clase 'IntegrationFixtures' con 5 campos públicos (encapsulación) — `src/test/java/com/um/catalogsync/integration/IntegrationFixtures.java`
 
 **duplicación** (6)
 - duplicación lógica: 4.4% · boilerplate: 9.2%
@@ -611,10 +310,6 @@ El análisis encontró las siguientes señales (archivo, sin número de línea a
 - bloque de 8 líneas repetido 3 veces en src/test/java/com/um/catalogsync/sync/application/usecases/ApplyCatalogVersionUseCaseImplTest.java:75, src/test/java/com/um/catalogsync/shared/infrastructure/FlywayMigrationsTest.java:65, src/test/java/com/um/catalogsync/integration/domain/model/IntegrationConfigTest.java:44 — `src/test/java/com/um/catalogsync/sync/application/usecases/ApplyCatalogVersionUseCaseImplTest.java`
 - bloque de 8 líneas repetido 3 veces en src/test/java/com/um/catalogsync/professional/infrastructure/persistence/adapter/ProfessionalSearchQueryTest.java:286, src/test/java/com/um/catalogsync/professional/infrastructure/persistence/adapter/ProfessionalAvailabilityQueryTest.java:290, src/test/java/com/um/catalogsync/professional/infrastructure/web/ProfessionalSearchApiIntegrationTest.java:515 — `src/test/java/com/um/catalogsync/professional/infrastructure/persistence/adapter/ProfessionalSearchQueryTest.java`
 - bloque de 8 líneas repetido 3 veces en src/test/java/com/um/catalogsync/professional/infrastructure/persistence/adapter/ProfessionalSearchQueryTest.java:285, src/test/java/com/um/catalogsync/professional/infrastructure/persistence/adapter/ProfessionalAvailabilityQueryTest.java:289, src/test/java/com/um/catalogsync/professional/infrastructure/web/ProfessionalSearchApiIntegrationTest.java:514 — `src/test/java/com/um/catalogsync/professional/infrastructure/persistence/adapter/ProfessionalSearchQueryTest.java`
-
-**seguridad** (2)
-- posible secreto hardcodeado (Password) — `src/main/java/com/um/catalogsync/integration/infrastructure/client/dto/IntegrationDto.java`
-- posible secreto hardcodeado (Token) — `src/main/java/com/um/catalogsync/integration/infrastructure/client/dto/TechnicalLoginResponseDto.java`
 
 ## 6. Evolución por commit
 
@@ -625,16 +320,16 @@ xychart-beta
     title "Índice de calidad a lo largo de los commits"
     x-axis ["983bea3", "ce0442b", "03d69f4", "2f148e8", "2b5eb73"]
     y-axis "Índice" 0 --> 100
-    line [0, 15, 61, 55, 55]
+    line [0, 15, 62, 66, 66]
 ```
 
 | # | Fecha | Commit | Autor | LOC | Índice | %POO | Duplic. | Sueltas |
 |---|---|---|---|---:|---:|---:|---:|---:|
 | 1 | 2026-09-10 | `983bea3` | Ing. Daniel Quinteros | 0 | 0 | 0% | 0.0% | 0 |
 | 2 | 2026-09-10 | `ce0442b` | Ing. Daniel Quinteros | 0 | 15 | 0% | 0.0% | 0 |
-| 3 | 2026-10-17 | `03d69f4` | Manuel Diez de Oñate | 4,494 | 61 | 62% | 4.7% | 0 |
-| 4 | 2026-11-02 | `2f148e8` | Manuel Diez de Oñate | 17,407 | 55 | 74% | 4.5% | 1 |
-| 5 | 2026-11-04 | `2b5eb73` | Manuel Diez de Oñate | 28,222 | 55 | 76% | 4.4% | 1 |
+| 3 | 2026-10-17 | `03d69f4` | Manuel Diez de Oñate | 4,494 | 62 | 47% | 4.7% | 0 |
+| 4 | 2026-11-02 | `2f148e8` | Manuel Diez de Oñate | 17,407 | 66 | 53% | 4.5% | 1 |
+| 5 | 2026-11-04 | `2b5eb73` | Manuel Diez de Oñate | 28,222 | 66 | 53% | 4.4% | 1 |
 
 ---
 _Informe generado por la cátedra. Las dimensiones y umbrales corresponden a `calidad.py` (perfil `exigente`); el semáforo, a `CRITERIOS-CALIDAD.md`. La documentación del repositorio no se evalúa. Ante dudas, revisá el archivo señalado._

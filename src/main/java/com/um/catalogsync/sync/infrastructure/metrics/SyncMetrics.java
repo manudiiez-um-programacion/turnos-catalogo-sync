@@ -42,6 +42,12 @@ import org.springframework.stereotype.Component;
  *   <li>{@value #EVENTOS} — una por notificacion resuelta, con etiqueta
  *       {@code outcome}. {@code outcome=DUPLICATE} es el contador de eventos
  *       descartados por duplicado.
+ *   <li>{@value #SNAPSHOT_RETRIES} — una por intento repetido del snapshot
+ *       REST ante una falla transitoria (issue #31), etiquetada con
+ *       {@link SnapshotRetryOutcome}. {@code RETRIED} es un reintento que
+ *       todavia tiene presupuesto; {@code EXHAUSTED} es el abandono, que
+ *       ademas deja su propia fila en {@value #ERRORES} porque la corrida
+ *       terminada tambien se cuenta ahi.
  * </ul>
  *
  * <p>Las etiquetas son todas enums del dominio, asi que la cardinalidad esta
@@ -61,6 +67,9 @@ public class SyncMetrics {
 
     /** Notificaciones resueltas, por resultado. {@code DUPLICATE} es el descarte. */
     static final String EVENTOS = "catalog.sync.events";
+
+    /** Intentos repetidos del snapshot REST, por resultado del intento. */
+    static final String SNAPSHOT_RETRIES = "catalog.sync.snapshot.retries";
 
     /** Valor de etiqueta para un dato que deberia estar y no esta. */
     static final String SIN_DATO = "UNKNOWN";
@@ -118,6 +127,19 @@ public class SyncMetrics {
     public void notificacionResuelta(CatalogUpdatedOutcome outcome) {
         Counter.builder(EVENTOS)
                 .description("Notificaciones CatalogUpdated resueltas, por resultado")
+                .tag("outcome", etiqueta(outcome))
+                .register(registro)
+                .increment();
+    }
+
+    /**
+     * Cuenta un intento repetido del snapshot REST.
+     *
+     * @param outcome si todavia quedaban intentos o se abandono
+     */
+    public void snapshotReintento(SnapshotRetryOutcome outcome) {
+        Counter.builder(SNAPSHOT_RETRIES)
+                .description("Intentos repetidos del snapshot REST, por resultado")
                 .tag("outcome", etiqueta(outcome))
                 .register(registro)
                 .increment();

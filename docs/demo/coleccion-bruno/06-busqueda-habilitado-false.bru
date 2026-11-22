@@ -1,0 +1,25 @@
+meta {
+  name: 06 - Filtro por habilitado=false
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/professionals?enabled=false
+  body: none
+  auth: bearer
+}
+
+params:query {
+  enabled: false
+}
+
+auth:bearer {
+  token: {{jwtUsuario}}
+}
+
+docs {
+  Filtro obligatorio por estado habilitado (§11). Trae solo los
+  deshabilitados, que la copia conserva como baja logica (§14.4): un
+  "content" vacio aca es valido si no hay ninguno deshabilitado.
+}

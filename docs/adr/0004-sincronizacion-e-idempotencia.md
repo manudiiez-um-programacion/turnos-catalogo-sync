@@ -195,6 +195,8 @@ Todos externalizados, sin valores por defecto escondidos en el código:
 | Espera entre reintentos de un mensaje | `catedra.kafka.retry-interval` | 5 s | |
 | Reintentos de un mismo mensaje | `catedra.kafka.max-retries` | 3 | acotados: §18.4 prohíbe ciclos ilimitados |
 | Chequeo periódico de versiones | `sync.reconciliation.interval` | 5 min | peor caso de cuánto tarda en notarse un aviso perdido |
+| Intentos del pedido del snapshot | `catedra.api.snapshot-retry.max-attempts` | 3 | acotados, igual que los de Kafka (#31) |
+| Espera entre intentos del snapshot | `catedra.api.snapshot-retry.backoff` | 2 s | amortigua sin agregar carga seria sobre el enlace de 228 ms |
 
 **Qué se reintenta y qué no**, que es la parte que importa:
 
@@ -207,9 +209,13 @@ Todos externalizados, sin valores por defecto escondidos en el código:
 - **El token técnico vencido**: se reintenta **una vez** la llamada, reemitiendo
   el token (`RestIntegrationConfigAdapter`). Si el token recién emitido también
   falla, el 401 es correcto y no hay nada que reintentar.
-- **La llamada REST del snapshot**: hoy **no** tiene reintentos ni backoff
-  propios. Es trabajo del issue #31, y está declarado como tal en el javadoc de
-  `RestCatalogSnapshotAdapter`.
+- **La llamada REST del snapshot**: reintenta hasta `max-attempts` veces ante
+  una falla transitoria —no ante un 401, un 403 ni un cuerpo incompleto, que
+  no son transitorios y reintentarlos repetiría el mismo resultado—, con
+  `backoff` de espera entre intento e intento (issue #31, declarado en el
+  javadoc de `RestCatalogSnapshotAdapter`). Es un reintento más bajo en la
+  pila que el de la fila anterior: amortigua un solo pedido HTTP, no decide
+  si vale la pena volver a sincronizar.
 
 ### 8. Una sola sincronización a la vez, y una red de seguridad
 
@@ -400,9 +406,14 @@ la fila queda obviamente desactualizada. Formato `Clase#metodo`.
   vez" se pierde con más de una instancia. Está acotado y documentado.
 - **`sync_run` y `processed_event` necesitan políticas de retención**, que son
   dos trabajos periódicos más y dos ventanas más que configurar.
-- **El snapshot no tiene reintentos propios** todavía (#31): hoy una cátedra
-  intermitente se resuelve esperando el próximo chequeo, que puede ser hasta
-  cinco minutos después.
+- **El snapshot reintenta un único pedido HTTP, no toda la sincronización**
+  (#31): `catedra.api.snapshot-retry` acota cuántas veces y con cuánta espera
+  se repite el `GET` ante una falla transitoria —una conexión que se cae, un
+  503 pasajero—, antes de que la excepción de siempre suba y la corrida quede
+  `FAILED`. Una cátedra caída de verdad, y no solo intermitente, sigue
+  resolviéndose esperando el próximo chequeo, que puede ser hasta cinco
+  minutos después: eso no cambió, y sigue siendo la decisión de la fila
+  anterior de la tabla de §7.
 - **Reemitir el token se reintenta una sola vez.** Un 401 persistente deja la
   sincronización trabada hasta que alguien revise la cuenta técnica; se ve en el
   estado como `DEGRADED` con `SNAPSHOT_UNAUTHORIZED`.

@@ -1,0 +1,25 @@
+meta {
+  name: 05 - Filtro por categoria y nombre parcial
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/professionals?categoryId={{categoryId}}&name=a
+  body: none
+  auth: bearer
+}
+
+params:query {
+  categoryId: {{categoryId}}
+  name: a
+}
+
+auth:bearer {
+  token: {{jwtUsuario}}
+}
+
+docs {
+  Dos de los filtros obligatorios (§11): categoria exacta y coincidencia
+  parcial de nombre/apellido, insensible a mayusculas y acentos.
+}

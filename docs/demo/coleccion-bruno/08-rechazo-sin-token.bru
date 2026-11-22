@@ -1,0 +1,16 @@
+meta {
+  name: 08 - Rechazo sin token
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{baseUrl}}/api/professionals
+  body: none
+  auth: none
+}
+
+docs {
+  Acceso anonimo a un endpoint protegido (§9, §11). Esperado: 401
+  application/problem+json con code=AUTH_TOKEN_MISSING.
+}

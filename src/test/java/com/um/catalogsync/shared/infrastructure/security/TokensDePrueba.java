@@ -89,6 +89,48 @@ public final class TokensDePrueba {
                 claims("usuario.final", "https://otro-emisor.example", List.of("ROLE_USER"), "auth", 1));
     }
 
+    /**
+     * Token tecnico interno vencido hace una hora, con la autoridad correcta.
+     *
+     * <p>Simetrico a {@link #deUsuarioVencido()}: la cadena de la API interna
+     * tiene su propio {@code JwtTimestampValidator} (#17), y nada lo probaba
+     * todavia sin pasar primero por la comprobacion de autoridad.
+     */
+    public static String deServicioDeTurnosVencido() {
+        return firmar(
+                SECRETO_INTERNO,
+                claims(
+                        "turnos-reservas-service",
+                        EMISOR,
+                        List.of(SecurityConfig.AUTORIDAD_TURNOS),
+                        "authorities",
+                        -1));
+    }
+
+    /** Token tecnico interno firmado con un secreto que este servicio no conoce. */
+    public static String deServicioConOtraFirma() {
+        return firmar(
+                SECRETO_AJENO,
+                claims(
+                        "turnos-reservas-service",
+                        EMISOR,
+                        List.of(SecurityConfig.AUTORIDAD_TURNOS),
+                        "authorities",
+                        1));
+    }
+
+    /** Token tecnico interno bien firmado pero emitido por otro. */
+    public static String deServicioConOtroEmisor() {
+        return firmar(
+                SECRETO_INTERNO,
+                claims(
+                        "turnos-reservas-service",
+                        "https://otro-emisor.example",
+                        List.of(SecurityConfig.AUTORIDAD_TURNOS),
+                        "authorities",
+                        1));
+    }
+
     private static JWTClaimsSet claims(
             String sujeto, String emisor, List<String> autoridades, String claimDeAutoridades, int horas) {
 

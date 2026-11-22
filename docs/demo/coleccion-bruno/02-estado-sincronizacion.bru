@@ -1,0 +1,22 @@
+meta {
+  name: 02 - Estado de sincronizacion
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/internal/sync/status
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{jwtInterno}}
+}
+
+docs {
+  Informa el estado y los errores de sincronizacion sin leer un log ni entrar
+  a la base (§4.1 del enunciado). Responde 200 siempre, incluso sin catalogo
+  aplicado. Mirar el campo "health": UP_TO_DATE / BEHIND / REBUILDING /
+  DEGRADED. Va con el JWT tecnico interno, no el de usuario (README).
+}

@@ -14,6 +14,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.groups.Tuple.tuple;
 
 import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.client.WireMock;
+import com.github.tomakehurst.wiremock.stubbing.Scenario;
 import com.um.catalogsync.sync.domain.model.SyncDecisionReason;
 import com.um.catalogsync.category.domain.ports.out.CategoryRepository;
 import com.um.catalogsync.integration.IntegrationFixtures;
@@ -23,6 +25,7 @@ import com.um.catalogsync.schedule.application.exception.UnknownProfessionalExce
 import com.um.catalogsync.schedule.domain.ports.out.WeeklyScheduleRepository;
 import com.um.catalogsync.shared.infrastructure.AbstractPostgresIntegrationTest;
 import com.um.catalogsync.shared.infrastructure.security.TokensDePrueba;
+import com.um.catalogsync.sync.application.exception.CatalogSnapshotUnavailableException;
 import com.um.catalogsync.sync.application.service.CatalogSyncService;
 import com.um.catalogsync.sync.domain.model.CatalogVersion;
 import com.um.catalogsync.sync.domain.model.CatalogVersionSource;
@@ -30,6 +33,7 @@ import com.um.catalogsync.sync.domain.model.SyncRun;
 import com.um.catalogsync.sync.domain.model.SyncStatus;
 import com.um.catalogsync.sync.domain.model.SyncTrigger;
 import com.um.catalogsync.sync.domain.ports.out.CatalogVersionRepository;
+import com.um.catalogsync.sync.infrastructure.client.SnapshotFixtures;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -326,6 +330,85 @@ class FullSyncEndToEndTest extends AbstractPostgresIntegrationTest {
         JsonNode cuerpo = cuerpoDe("");
         assertThat(idsDe(cuerpo)).containsExactlyInAnyOrder(ANA, LUIS, BRUNO);
         assertThat(cuerpo.path("catalogVersion").path("version").asLong()).isEqualTo(VERSION);
+    }
+
+    // --- Resiliencia del enlace con la catedra (issue #31) ----------------
+
+    @Test
+    @DisplayName("Una falla transitoria del snapshot se reintenta y la sincronizacion termina bien")
+    void unaFallaTransitoriaSeReintentaYTerminaBien() {
+        // Un 503 primero y el catalogo despues, en ese orden, con el mismo
+        // doble de siempre: el primer intento falla como fallaria con la
+        // catedra real a mitad de una caida pasajera, y el segundo es el
+        // que efectivamente trae el snapshot.
+        CATEDRA.stubFor(get(urlEqualTo(RUTA_SNAPSHOT)).inScenario("snapshot-retry")
+                .whenScenarioStateIs(Scenario.STARTED)
+                .willReturn(WireMock.aResponse()
+                        .withStatus(503)
+                        .withHeader("Content-Type", "application/problem+json")
+                        .withBody(SnapshotFixtures.problemJson(503, null, "Redis unavailable")))
+                .willSetStateTo("segundo-intento"));
+        CATEDRA.stubFor(get(urlEqualTo(RUTA_SNAPSHOT)).inScenario("snapshot-retry")
+                .whenScenarioStateIs("segundo-intento")
+                .willReturn(okJson(catalogoDeLaCatedra(VERSION))));
+
+        SyncRun corrida = sincronizacion.runFullSync(SyncTrigger.STARTUP, SyncDecisionReason.REQUESTED);
+
+        assertThat(corrida.getStatus()).isEqualTo(SyncStatus.SUCCEEDED);
+        assertThat(versiones.findCurrent()).get()
+                .satisfies(version -> assertThat(version.getVersion()).isEqualTo(VERSION));
+        // Las dos llamadas se hicieron de verdad: el reintento no es un
+        // efecto de haber reusado una respuesta en memoria.
+        CATEDRA.verify(2, getRequestedFor(urlEqualTo(RUTA_SNAPSHOT)));
+    }
+
+    @Test
+    @DisplayName("Al agotar los reintentos la corrida queda FAILED, la busqueda sigue andando"
+            + " y una corrida posterior recupera")
+    void seAgotanLosReintentosYUnaCorridaPosteriorRecupera() {
+        dadaLaCopiaSincronizada();
+
+        // La catedra se cae del todo: todas las respuestas son 503, no solo
+        // la primera. Es el corte "a mitad de una sincronizacion" que pide
+        // el criterio del issue, provocado desde la frontera real.
+        CATEDRA.stubFor(get(urlEqualTo(RUTA_SNAPSHOT))
+                .willReturn(WireMock.aResponse()
+                        .withStatus(503)
+                        .withHeader("Content-Type", "application/problem+json")
+                        .withBody(SnapshotFixtures.problemJson(503, null, "Redis unavailable"))));
+        CATEDRA.resetRequests();
+
+        assertThatThrownBy(
+                () -> sincronizacion.runFullSync(SyncTrigger.EVENT, SyncDecisionReason.REQUESTED))
+                .isInstanceOf(CatalogSnapshotUnavailableException.class);
+
+        // Los reintentos se agotaron de verdad: tantas llamadas como
+        // catedra.api.snapshot-retry.max-attempts en el perfil de pruebas,
+        // ni una de menos ni una de mas.
+        CATEDRA.verify(2, getRequestedFor(urlEqualTo(RUTA_SNAPSHOT)));
+        assertThat(corridas()).extracting("status").last().isEqualTo("FAILED");
+        assertThat(errores()).singleElement()
+                .satisfies(fila -> assertThat(fila).containsEntry("code", "SNAPSHOT_UNAVAILABLE"));
+
+        // El servicio sigue siendo usable mientras la catedra esta caida: la
+        // busqueda responde la copia de la version 7, no un 503 (AC del
+        // issue, ya probado en el fallo a mitad de camino y reafirmado aca
+        // para el corte de conexion en si).
+        JsonNode cuerpo = cuerpoDe("");
+        assertThat(idsDe(cuerpo)).containsExactlyInAnyOrder(ANA, LUIS, BRUNO);
+        assertThat(cuerpo.path("catalogVersion").path("version").asLong()).isEqualTo(VERSION);
+
+        // Y es recuperable: cuando la catedra vuelve a responder, la proxima
+        // corrida —la que dispararia la reconciliacion periodica (#27)—
+        // cierra el atraso sin que nadie haya tenido que reiniciar nada.
+        laCatedraSirveSuCatalogo(9L);
+
+        SyncRun recuperada =
+                sincronizacion.runFullSync(SyncTrigger.RECONCILIATION, SyncDecisionReason.REQUESTED);
+
+        assertThat(recuperada.getStatus()).isEqualTo(SyncStatus.SUCCEEDED);
+        assertThat(versiones.findCurrent()).get()
+                .satisfies(version -> assertThat(version.getVersion()).isEqualTo(9L));
     }
 
     // --- La busqueda sobre lo que trajo el snapshot -----------------------

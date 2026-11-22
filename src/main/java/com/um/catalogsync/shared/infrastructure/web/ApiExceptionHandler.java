@@ -10,6 +10,8 @@ import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -71,6 +73,62 @@ public class ApiExceptionHandler {
                                 ApiErrorCode.VALIDATION_ERROR,
                                 detalle.isEmpty() ? "parametros invalidos" : detalle,
                                 request.getRequestURI()));
+    }
+
+    /**
+     * 400: una restriccion de Bean Validation sobre un {@code @PathVariable}
+     * o un {@code @RequestParam} suelto, no sobre un objeto de binding
+     * (issue #32).
+     *
+     * <p>Es un tipo distinto de {@link BindException} aposta, y no por
+     * eleccion sino porque es lo que realmente lanza el camino de
+     * validacion de un parametro suelto: un controlador anotado
+     * {@code @Validated} —por ejemplo para {@code @PathVariable @Positive
+     * Long professionalId}— queda envuelto por el
+     * {@code MethodValidationPostProcessor} que arma
+     * {@code ValidationAutoConfiguration}, que es validacion por AOP sobre
+     * el metodo y no el camino nativo de Spring MVC. Por eso la excepcion es
+     * {@link ConstraintViolationException} y no
+     * {@code HandlerMethodValidationException}: la segunda es del
+     * resolutor de argumentos de {@code DispatcherServlet}, al que el proxy
+     * de la primera no le da ni la oportunidad de intervenir, porque la
+     * violacion se detecta antes, al invocar el metodo. {@code BindException}
+     * es para cuando el valor se bindea a un objeto completo
+     * ({@code @Valid @ModelAttribute}). Comparten {@code code} porque para
+     * quien integra son el mismo problema: un parametro que no se puede
+     * aceptar.
+     */
+    @ExceptionHandler(ConstraintViolationException.class)
+    ResponseEntity<Map<String, Object>> parametroSueltoInvalido(
+            ConstraintViolationException error, HttpServletRequest request) {
+
+        String detalle =
+                error.getConstraintViolations().stream()
+                        .map(ApiExceptionHandler::nombreYMensaje)
+                        .sorted()
+                        .collect(Collectors.joining("; "));
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                .body(
+                        ProblemJsonWriter.cuerpo(
+                                HttpStatus.BAD_REQUEST,
+                                ApiErrorCode.VALIDATION_ERROR,
+                                detalle.isEmpty() ? "parametros invalidos" : detalle,
+                                request.getRequestURI()));
+    }
+
+    /**
+     * {@code nombreDelParametro: mensaje}, sin el nombre del metodo que
+     * Hibernate Validator antepone al {@code propertyPath}
+     * ({@code agendaVigente.professionalId}): ese prefijo es detalle interno
+     * —el nombre del metodo del controlador— que no le dice nada a quien
+     * integra.
+     */
+    private static String nombreYMensaje(ConstraintViolation<?> violacion) {
+        String ruta = violacion.getPropertyPath().toString();
+        String nombre = ruta.contains(".") ? ruta.substring(ruta.lastIndexOf('.') + 1) : ruta;
+        return nombre + ": " + violacion.getMessage();
     }
 
     /**

@@ -20,8 +20,18 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * responde—. Sin {@code commandTimeout}, un servidor que acepta la conexion
  * y no contesta deja el comando colgado para siempre. El enlace a la catedra
  * es ZeroTier y tiene ~228 ms de ida y vuelta medidos (D6), asi que los
- * valores son holgados a proposito; el ajuste fino va con los reintentos
- * (#31).
+ * valores son holgados a proposito.
+ *
+ * <p><b>Por que esta clase no agrego un reintento propio (issue #31).</b> El
+ * ADR 0004 §7 es explicito: una sincronizacion fallida no se reintenta en el
+ * momento, la recupera la reconciliacion periodica (#27) o la proxima
+ * notificacion. Un reintento acá duplicaria esa decision un nivel mas abajo,
+ * y sobre una lectura que de todas formas se vuelve a abrir sola la proxima
+ * vez que haga falta ({@code CatedraRedisConnection} reabre la conexion si
+ * cambia la huella). El unico reintento nuevo de #31 es el del snapshot REST
+ * ({@code CatalogSnapshotRetryProperties}), que es mas bajo en la pila:
+ * amortigua un solo pedido HTTP, no decide si vale la pena volver a
+ * sincronizar.
  *
  * <p>No hay secretos, asi que no hace falta un {@code toString()} propio
  * —y no se agrega uno por si acaso: un {@code toString()} que oculta dos

@@ -124,6 +124,21 @@ class SyncMetricsTest {
         assertThat(registro.find("catalog.sync.errors").counters()).isEmpty();
     }
 
+    @Test
+    @DisplayName("Los reintentos del snapshot se cuentan por resultado del intento (#31)")
+    void cuentaLosReintentosDelSnapshot() {
+        metricas.snapshotReintento(SnapshotRetryOutcome.RETRIED);
+        metricas.snapshotReintento(SnapshotRetryOutcome.RETRIED);
+        metricas.snapshotReintento(SnapshotRetryOutcome.EXHAUSTED);
+
+        assertThat(registro.get("catalog.sync.snapshot.retries")
+                        .tag("outcome", "RETRIED").counter().count())
+                .isEqualTo(2);
+        assertThat(registro.get("catalog.sync.snapshot.retries")
+                        .tag("outcome", "EXHAUSTED").counter().count())
+                .isEqualTo(1);
+    }
+
     private double eventos(String outcome) {
         return registro.get("catalog.sync.events").tag("outcome", outcome).counter().count();
     }

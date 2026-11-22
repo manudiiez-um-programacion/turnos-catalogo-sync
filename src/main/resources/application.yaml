@@ -87,7 +87,7 @@ catedra:
     # Timeouts holgados a proposito: el servidor se alcanza por ZeroTier y
     # el enlace tiene ~228 ms de ida y vuelta medidos (decision D6). Sin
     # timeout de lectura, una llamada que no responde cuelga el hilo para
-    # siempre. Los reintentos y el ajuste fino son del issue #31.
+    # siempre.
     connect-timeout: 5s
     read-timeout: 20s
 
@@ -95,6 +95,16 @@ catedra:
     # es PROVISIONED, el arranque falla. Queda en true salvo en pruebas: el
     # lado seguro de olvidarse de configurarlo es que la verificacion corra.
     verify-on-startup: true
+
+    # Reintentos del pedido del snapshot ante una falla transitoria —una
+    # conexion que se cae, un 503 pasajero— (issue #31). No es lo mismo que
+    # reintentar la sincronizacion: esa decision ya esta tomada en el ADR
+    # 0004 §7 (no se reintenta en el momento, la recupera la reconciliacion
+    # periodica). Esto es mas bajo en la pila: amortigua un solo pedido HTTP
+    # antes de dejar que la falla suba y la corrida quede FAILED.
+    snapshot-retry:
+      max-attempts: 3
+      backoff: 2s
 
   # Lectura del catalogo publicado en Redis (§14, issue #22).
   #

@@ -1,0 +1,23 @@
+meta {
+  name: 09 - Rechazo con la identidad equivocada
+  type: http
+  seq: 9
+}
+
+get {
+  url: {{baseUrl}}/api/internal/sync/status
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{jwtUsuario}}
+}
+
+docs {
+  El JWT de usuario final presentado en la API interna, que solo acepta el
+  JWT tecnico (§9, D4). La cadena de la API interna decodifica con otro
+  secreto, asi que falla antes de llegar a la comprobacion de autoridad:
+  esperado 401 AUTH_TOKEN_INVALID (firma no verificable con ese secreto), no
+  403. Separacion criptografica, no una comprobacion de claims.
+}

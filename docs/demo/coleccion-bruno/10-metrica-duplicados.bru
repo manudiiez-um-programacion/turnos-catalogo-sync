@@ -1,0 +1,31 @@
+meta {
+  name: 10 - Metrica de duplicados absorbidos
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{baseUrl}}/actuator/metrics/catalog.sync.events?tag=outcome:DUPLICATE
+  body: none
+  auth: bearer
+}
+
+params:query {
+  tag: outcome:DUPLICATE
+}
+
+auth:bearer {
+  token: {{jwtUsuario}}
+}
+
+docs {
+  La evidencia de idempotencia agregada que pide §11: un mensaje repetido que
+  no repitio ningun efecto, contado. OJO: este contador vive en la instancia
+  que esta corriendo (docker compose / spring-boot:run), no en el proceso de
+  ./mvnw test. Solo sube con un duplicado real del topic de la catedra contra
+  ESTA instancia (requiere ZeroTier + Kafka). Paso opcional/"si hay red" del
+  guion: la evidencia que siempre se puede mostrar, sin depender de la
+  catedra, es la prueba automatizada SyncMetricsTest#cuentaLosDuplicados
+  (paso 2 del guion). /actuator/metrics exige token igual que el resto de la
+  API.
+}

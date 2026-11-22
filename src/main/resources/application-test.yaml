@@ -40,6 +40,15 @@ catedra:
     read-timeout: 2s
     verify-on-startup: false
 
+    # Reintentos del snapshot: pocos y rapidos, por el mismo motivo que los
+    # timeouts de arriba. Las pruebas que verifican el reintento en si (#31)
+    # construyen su propio CatalogSnapshotRetryProperties y no dependen de
+    # este valor; el que importa aca es que el contexto arranque con algo
+    # positivo.
+    snapshot-retry:
+      max-attempts: 2
+      backoff: 50ms
+
   # Redis de la catedra: timeouts cortos.
   #
   # En una prueba no hay un enlace ZeroTier que justifique esperar diez

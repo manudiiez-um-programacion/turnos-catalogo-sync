@@ -84,7 +84,8 @@ public class SecurityConfig {
     private static final String RUTA_HEALTH = "/actuator/health";
 
     /**
-     * Las rutas de la documentacion.
+     * Las rutas del documento OpenAPI. No hay Swagger UI (#108): no estaba en
+     * la consigna.
      *
      * <p>{@code /v3/api-docs.yaml} va aparte y no lo cubre
      * {@code /v3/api-docs/**}: el patron de un segmento no matchea un sufijo de
@@ -93,11 +94,7 @@ public class SecurityConfig {
      * versionado (#20).
      */
     private static final String[] RUTAS_OPENAPI = {
-        "/v3/api-docs",
-        "/v3/api-docs.yaml",
-        "/v3/api-docs/**",
-        "/swagger-ui/**",
-        "/swagger-ui.html"
+        "/v3/api-docs", "/v3/api-docs.yaml", "/v3/api-docs/**"
     };
 
     private final ApiSecurityProperties propiedades;

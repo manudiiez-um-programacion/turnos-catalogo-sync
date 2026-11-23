@@ -104,9 +104,11 @@
             <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
         </dependency>
 
+        <!-- Solo el documento OpenAPI (/v3/api-docs), sin Swagger UI: la
+             pagina interactiva no estaba en la consigna (#108). -->
         <dependency>
             <groupId>org.springdoc</groupId>
-            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <artifactId>springdoc-openapi-starter-webmvc-api</artifactId>
             <version>${springdoc.version}</version>
         </dependency>
 

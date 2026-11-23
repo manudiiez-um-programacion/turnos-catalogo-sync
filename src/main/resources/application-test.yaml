@@ -15,8 +15,6 @@ spring:
 springdoc:
   api-docs:
     enabled: false
-  swagger-ui:
-    enabled: false
 
 # Integracion con la catedra: en pruebas no se la toca.
 #

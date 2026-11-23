@@ -64,11 +64,10 @@ management:
     health:
       show-details: never
 
-# Swagger UI se puede apagar por configuracion en cualquier perfil.
+# El documento OpenAPI (/v3/api-docs) se puede apagar por configuracion en
+# cualquier perfil. No hay Swagger UI: no estaba en la consigna (#108).
 springdoc:
   api-docs:
-    enabled: ${SPRINGDOC_ENABLED:false}
-  swagger-ui:
     enabled: ${SPRINGDOC_ENABLED:false}
 
 # Integracion con el servicio central de la catedra.

@@ -82,9 +82,10 @@ El `SONAR_TOKEN` es un secret del repo: si falta, el análisis se omite con
 un aviso y el job sigue en verde.
 
 Paquete raíz `com.um.catalogsync`, un subpaquete por slice, cada uno con
-`domain/application/infrastructure`. Perfiles `local` y `test`; Swagger se
-apaga con `SPRINGDOC_ENABLED=false`. Las migraciones son de Flyway, viven
-en `src/main/resources/db/migration` y las aplica la app al arrancar.
+`domain/application/infrastructure`. Perfiles `local` y `test`; el documento
+OpenAPI (`/v3/api-docs`, sin Swagger UI: no estaba en la consigna) se apaga
+con `SPRINGDOC_ENABLED=false`. Las migraciones son de Flyway, viven en
+`src/main/resources/db/migration` y las aplica la app al arrancar.
 
 Docker Compose levanta solo la app y su PostgreSQL, para desarrollo aislado
 del catálogo (D9). Redis y Kafka de la cátedra son externos y no se levantan

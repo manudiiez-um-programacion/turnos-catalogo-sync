@@ -419,7 +419,7 @@ completa; esto es solo el orden.
 | Framework | Spring Boot 4.1.0 |
 | Build | Maven, con wrapper versionado (`./mvnw`) |
 | Base de datos | PostgreSQL (servidor; §3 prohíbe H2 y embebidas) |
-| Documentación de la API | springdoc-openapi / Swagger UI |
+| Documentación de la API | springdoc-openapi (`/v3/api-docs`, sin Swagger UI) |
 
 ## Comandos
 
@@ -438,11 +438,11 @@ el conjunto es [Docker Compose](#levantar-todo-con-docker-compose).
 
 | Perfil | Para qué |
 | --- | --- |
-| *(base)* | Común a todos. Swagger apagado. |
-| `local` | Desarrollo. Swagger en `/swagger-ui.html`, logs en DEBUG. |
+| *(base)* | Común a todos. Documentación OpenAPI apagada. |
+| `local` | Desarrollo. Documento OpenAPI en `/v3/api-docs`, logs en DEBUG. |
 | `test` | Pruebas. La base la provee Testcontainers. |
 
-Se elige con `SPRING_PROFILES_ACTIVE`. Swagger se apaga en cualquier perfil
+Se elige con `SPRING_PROFILES_ACTIVE`. La documentación se apaga en cualquier perfil
 con `SPRINGDOC_ENABLED=false`.
 
 ### Verificación automática
@@ -611,7 +611,7 @@ Cuando termina, estas tres direcciones responden:
 | | |
 | --- | --- |
 | `http://localhost:8080/actuator/health` | `{"status":"UP"}` |
-| `http://localhost:8080/swagger-ui.html` | Swagger UI (perfil `local`) |
+| `http://localhost:8080/v3/api-docs` | documento OpenAPI (perfil `local`, sin Swagger UI) |
 | `localhost:5432` | PostgreSQL, usuario y base `catalogo` |
 
 Comprobación rápida:

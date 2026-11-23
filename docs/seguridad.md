@@ -179,7 +179,7 @@ escritura por HTTP. Verificado en `ApiSecurityIntegrationTest.Cors`.
 | Cabecera | Valor | Por qué |
 | --- | --- | --- |
 | `X-Frame-Options` | `DENY` | explícita (issue #32): el default de Spring Security es `SAMEORIGIN`, más laxo de lo necesario para una API que nunca se sirve en un `frame` |
-| `Content-Security-Policy` | `default-src 'none'` | explícita (issue #32), no es default de Spring Security: la API solo devuelve JSON, así que la política más restrictiva no rompe nada |
+| `Content-Security-Policy` | depende de la ruta, ver abajo | explícita (issues #32 y #106), no es default de Spring Security |
 | `X-Content-Type-Options` | `nosniff` | default de Spring Security, dejado como está |
 | `Cache-Control` | según la respuesta | default de Spring Security |
 | `Strict-Transport-Security` | solo si la petición llega por HTTPS | default de Spring Security; condicionado a TLS, que en este entorno termina en la infraestructura de despliegue, no en la app |
@@ -188,6 +188,37 @@ Las dos primeras se agregaron en `SecurityConfig.cabecerasDeSeguridad()` y
 las cinco quedan verificadas por una prueba contra un servidor real
 (`ApiSecurityIntegrationTest.CabecerasDeSeguridad`), para que ninguna dependa
 de que alguien recuerde cuáles trae Spring Security de fábrica.
+
+### Dos políticas de contenido, porque hay dos cosas servidas
+
+La `Content-Security-Policy` es la única cabecera que no es igual en todas las
+rutas. Nació como `default-src 'none'` para todo, con la justificación de que
+«la API solo devuelve JSON»: cierto para los endpoints de datos, pero
+incompleto, porque con springdoc encendido la aplicación sirve además la página
+de Swagger UI, que sí carga recursos propios. El resultado fue que
+`/swagger-ui.html` respondía 200 y se veía **en blanco**: el navegador
+bloqueaba el CSS y los tres scripts del propio origen. Lo corrigió el issue
+#106.
+
+| Rutas | Política | Por qué |
+| --- | --- | --- |
+| la API de datos (`/api/**`, `/api/internal/**`, actuator) | `default-src 'none'` | las respuestas no referencian ningún recurso, así que la política más restrictiva no les quita nada |
+| la documentación (`/v3/api-docs*`, `/swagger-ui/**`) | `default-src 'self'` más `script-src 'self'`, `style-src 'self' 'unsafe-inline'`, `img-src`/`font-src 'self' data:`, `connect-src 'self'`, `frame-ancestors 'none'` | es lo mínimo que Swagger UI necesita para dibujarse y para que «Try it out» pueda leer el documento |
+
+La política relajada se aplica por una **tercera cadena de filtros** con
+`@Order(0)`, cuyo `securityMatcher` enumera solo las rutas de OpenAPI, y que
+existe únicamente si `springdoc.api-docs.enabled` está en `true`. Se eligió
+sobre la alternativa barata —aflojar la política global hasta que la página se
+viera— por dos razones: la API de datos conserva la política más restrictiva
+posible, y en un despliegue con `SPRINGDOC_ENABLED=false` esa cadena no llega a
+registrarse, así que las rutas de documentación vuelven a exigir credencial.
+
+De las concesiones, la única incómoda es `'unsafe-inline'` en estilos, y es
+inevitable: Swagger UI inyecta estilos en línea desde JavaScript. No se concede
+en scripts, que es donde habilitaría XSS, y no hace falta `'unsafe-eval'`.
+`SwaggerUiNavegableTest` verifica las dos mitades: que la documentación cargue
+y que la política relajada no se filtre a la API, incluso con la documentación
+encendida.
 
 ## Manejo de errores sin fuga de detalle interno
 

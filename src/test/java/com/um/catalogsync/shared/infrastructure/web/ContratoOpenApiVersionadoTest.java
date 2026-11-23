@@ -3,6 +3,7 @@ package com.um.catalogsync.shared.infrastructure.web;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.um.catalogsync.shared.infrastructure.AbstractPostgresIntegrationTest;
+import com.um.catalogsync.shared.infrastructure.DocumentacionEncendida;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -36,7 +37,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
  */
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = "springdoc.api-docs.enabled=true")
+        properties = {DocumentacionEncendida.API_DOCS, DocumentacionEncendida.SWAGGER_UI})
 class ContratoOpenApiVersionadoTest extends AbstractPostgresIntegrationTest {
 
     private static final Path ARCHIVO = Path.of("docs", "contratos", "openapi.yaml");

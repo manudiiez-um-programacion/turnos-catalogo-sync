@@ -3,6 +3,7 @@ package com.um.catalogsync.schedule.infrastructure.web;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.um.catalogsync.shared.infrastructure.AbstractPostgresIntegrationTest;
+import com.um.catalogsync.shared.infrastructure.DocumentacionEncendida;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -27,13 +28,15 @@ import tools.jackson.databind.ObjectMapper;
  * una promesa que el servicio no cumple. Lo que se verifica es justamente lo
  * que un repo distinto va a leer sin poder preguntar.
  *
- * <p>Levanta con {@code springdoc.api-docs.enabled=true} porque el perfil
- * {@code test} lo apaga. Eso ejercita de paso la regla de seguridad: cuando la
- * documentacion esta publicada, se puede leer sin token.
+ * <p>Levanta con la documentacion encendida porque el perfil {@code test} la
+ * apaga. Eso ejercita de paso la regla de seguridad: cuando la documentacion
+ * esta publicada, se puede leer sin token. Las propiedades vienen de
+ * {@link DocumentacionEncendida} y no escritas a mano, para compartir contexto
+ * con las demas pruebas que la necesitan; el motivo esta explicado ahi.
  */
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = "springdoc.api-docs.enabled=true")
+        properties = {DocumentacionEncendida.API_DOCS, DocumentacionEncendida.SWAGGER_UI})
 class AgendaOpenApiContractTest extends AbstractPostgresIntegrationTest {
 
     private static final String RUTA_AGENDA = "/api/internal/professionals/{professionalId}/agenda";

@@ -3,7 +3,7 @@ package com.um.catalogsync.shared.infrastructure.security;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import javax.crypto.spec.SecretKeySpec;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -30,10 +30,15 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 /**
  * Este servicio como resource server: valida tokens y no emite ninguno.
  *
- * <p>Implementa lo decidido en el ADR 0002. Hay <b>dos cadenas de filtros</b>
- * porque hay dos identidades con dos secretos distintos:
+ * <p>Implementa lo decidido en el ADR 0002. Hay <b>tres cadenas de filtros</b>:
+ * dos porque hay dos identidades con dos secretos distintos, y una tercera
+ * porque la documentacion no es una API de datos y no puede regirse por las
+ * mismas cabeceras.
  *
- * <ol>
+ * <ol start="0">
+ *   <li>las rutas de OpenAPI — sin credencial y con una
+ *       {@code Content-Security-Policy} que permite cargar los recursos de
+ *       Swagger UI. Solo existe si la documentacion esta encendida (#106).
  *   <li>{@value #RUTA_API_INTERNA} — la agenda vigente que consume el servicio
  *       de turnos (#18). Decodifica con el secreto interno y exige la
  *       autoridad {@value #AUTORIDAD_TURNOS}.
@@ -49,12 +54,14 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  * separacion que pide §9 sin depender de que nadie se olvide de escribir un
  * {@code hasAuthority}.
  *
- * <p><b>Denegado por defecto.</b> Las dos cadenas terminan en
- * {@code anyRequest().authenticated()}, asi que un endpoint nuevo queda cerrado
- * sin hacer nada: para abrirlo hay que agregarlo explicitamente aca. Es un
- * criterio de aceptacion de #17 y el orden correcto de los errores posibles:
- * olvidarse de proteger algo es grave, olvidarse de abrir algo se nota en la
- * primera prueba.
+ * <p><b>Denegado por defecto.</b> Las dos cadenas de datos terminan exigiendo
+ * credencial —{@code hasAuthority} la interna, {@code authenticated} la otra—,
+ * asi que un endpoint nuevo queda cerrado sin hacer nada: para abrirlo hay que
+ * agregarlo explicitamente aca. Es un criterio de aceptacion de #17 y el orden
+ * correcto de los errores posibles: olvidarse de proteger algo es grave,
+ * olvidarse de abrir algo se nota en la primera prueba. La cadena de la
+ * documentacion no debilita esto: su {@code securityMatcher} enumera las
+ * rutas que abre, asi que no puede alcanzar a un endpoint nuevo.
  *
  * <p><b>El JWT tecnico de la catedra no participa.</b> Vive en el slice
  * {@code integration} y se usa solo como credencial de salida hacia el
@@ -100,31 +107,85 @@ public class SecurityConfig {
         "/swagger-ui.html"
     };
 
+    /**
+     * La politica de la API de datos: no cargar nada.
+     *
+     * <p>Las respuestas son {@code application/json} o
+     * {@code application/problem+json} y no referencian ningun recurso, asi que
+     * la politica mas restrictiva posible no les quita nada y cierra la puerta
+     * a que una respuesta reflejada se interprete alguna vez como HTML.
+     */
+    private static final String CSP_API = "default-src 'none'";
+
+    /**
+     * La politica de Swagger UI: lo propio y nada de terceros.
+     *
+     * <p>Swagger UI <b>si</b> es HTML con recursos: su {@code index.html} carga
+     * {@code swagger-ui.css} y tres scripts del mismo origen. Con
+     * {@value #CSP_API} el navegador recibia el HTML y bloqueaba todo lo demas,
+     * y la pagina quedaba en blanco (#106).
+     *
+     * <p>Cada directiva esta porque algo la necesita, y ninguna admite un
+     * origen ajeno:
+     *
+     * <ul>
+     *   <li>{@code 'self'} en scripts, estilos, imagenes y fuentes: todo lo que
+     *       Swagger UI carga lo sirve esta misma aplicacion.
+     *   <li>{@code 'unsafe-inline'} <b>solo</b> en estilos: Swagger UI inyecta
+     *       estilos en linea desde JavaScript y sin esto la UI aparece sin
+     *       formato. No se concede en scripts, que es donde importaria, ni hace
+     *       falta {@code 'unsafe-eval'}.
+     *   <li>{@code data:} en imagenes y fuentes: los iconos vienen embebidos.
+     *   <li>{@code connect-src 'self'}: es lo que habilita "Try it out", que
+     *       lee {@code /v3/api-docs} y llama a los endpoints por XHR.
+     *   <li>{@code frame-ancestors 'none'}: la version moderna del
+     *       {@code X-Frame-Options: DENY} que ya se manda, por si algun
+     *       navegador ignora el segundo.
+     * </ul>
+     */
+    private static final String CSP_DOCUMENTACION =
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';"
+                    + " img-src 'self' data:; font-src 'self' data:; connect-src 'self';"
+                    + " frame-ancestors 'none'";
+
     private final ApiSecurityProperties propiedades;
     private final ProblemAuthenticationEntryPoint entradaNoAutenticada;
     private final ProblemAccessDeniedHandler accesoDenegado;
 
-    /**
-     * Si la documentacion OpenAPI esta encendida.
-     *
-     * <p>Se decide por la misma propiedad que enciende springdoc y no por el
-     * perfil activo: si la documentacion esta apagada, esas rutas no existen y
-     * abrirlas no tendria sentido; si esta encendida, tiene que poder leerse
-     * sin token o no sirve para nada. Asi la regla de seguridad no puede
-     * quedar desincronizada de la configuracion real. En el perfil
-     * {@code local} viene en {@code true} y en los demas en {@code false}.
-     */
-    private final boolean documentacionPublicada;
-
     public SecurityConfig(
             ApiSecurityProperties propiedades,
             ProblemAuthenticationEntryPoint entradaNoAutenticada,
-            ProblemAccessDeniedHandler accesoDenegado,
-            @Value("${springdoc.api-docs.enabled:false}") boolean documentacionPublicada) {
+            ProblemAccessDeniedHandler accesoDenegado) {
         this.propiedades = propiedades;
         this.entradaNoAutenticada = entradaNoAutenticada;
         this.accesoDenegado = accesoDenegado;
-        this.documentacionPublicada = documentacionPublicada;
+    }
+
+    /**
+     * Cadena de la documentacion: sin credencial y con la CSP que la deja ver.
+     *
+     * <p>Va antes que las dos de datos. Su {@code securityMatcher} reclama solo
+     * las rutas de OpenAPI, que ninguna de las otras dos necesita; si estuviera
+     * al final, esas rutas caerian en la cadena por defecto y volverian a
+     * recibir {@value #CSP_API}, que es exactamente el defecto de #106.
+     *
+     * <p><b>Existe solo si la documentacion esta encendida</b>, decidido por la
+     * misma propiedad que enciende springdoc y no por el perfil activo: si la
+     * documentacion esta apagada, esas rutas no sirven nada y no hay nada que
+     * abrir; si esta encendida, tiene que poder leerse sin token o no sirve
+     * para nada. Asi la regla de seguridad no puede quedar desincronizada de la
+     * configuracion real, y en un despliegue con {@code SPRINGDOC_ENABLED=false}
+     * esta cadena no llega a registrarse: las rutas caen en la cadena por
+     * defecto, que exige credencial, y responden 401 como antes.
+     */
+    @Bean
+    @Order(0)
+    @ConditionalOnProperty(prefix = "springdoc.api-docs", name = "enabled", havingValue = "true")
+    SecurityFilterChain documentacion(HttpSecurity http) throws Exception {
+        http.securityMatcher(RUTAS_OPENAPI);
+        aplicarBase(http, CSP_DOCUMENTACION);
+        http.authorizeHttpRequests(rutas -> rutas.anyRequest().permitAll());
+        return http.build();
     }
 
     /**
@@ -137,7 +198,7 @@ public class SecurityConfig {
     @Order(1)
     SecurityFilterChain apiInterna(HttpSecurity http) throws Exception {
         http.securityMatcher(RUTA_API_INTERNA);
-        aplicarBase(http);
+        aplicarBase(http, CSP_API);
         http.authorizeHttpRequests(rutas -> rutas.anyRequest().hasAuthority(AUTORIDAD_TURNOS))
                 .oauth2ResourceServer(
                         oauth2 ->
@@ -157,25 +218,28 @@ public class SecurityConfig {
     /**
      * Cadena por defecto: la API que consume la app KMP y todo lo demas.
      *
-     * <p>Publico solo {@value #RUTA_HEALTH} —lo necesita el healthcheck de
-     * Docker Compose y cualquier orquestador, y no revela nada: en los perfiles
-     * que no son {@code local} responde sin detalles— y, si esta encendida, la
-     * documentacion OpenAPI. {@code /actuator/info} queda detras de token: el
-     * criterio de #17 dice "publicos solo health y la documentacion", y de los
-     * dos lados posibles del limite este es el barato.
+     * <p>Publico solo {@value #RUTA_HEALTH}: lo necesita el healthcheck de
+     * Docker Compose y cualquier orquestador, y no revela nada —en los perfiles
+     * que no son {@code local} responde sin detalles—. La documentacion, el
+     * otro publico que pide #17, la abre su propia cadena.
+     * {@code /actuator/info} queda detras de token: el criterio de #17 dice
+     * "publicos solo health y la documentacion", y de los dos lados posibles
+     * del limite este es el barato.
+     *
+     * <p>Cuando la documentacion esta apagada esta cadena es la que atiende sus
+     * rutas, y entonces {@code anyRequest().authenticated()} las cierra: es lo
+     * que mantiene el 401 que verifica {@code ApiSecurityIntegrationTest}.
      */
     @Bean
     @Order(2)
     SecurityFilterChain apiPublica(HttpSecurity http) throws Exception {
-        aplicarBase(http);
+        aplicarBase(http, CSP_API);
         http.authorizeHttpRequests(
-                        rutas -> {
-                            rutas.requestMatchers(RUTA_HEALTH).permitAll();
-                            if (documentacionPublicada) {
-                                rutas.requestMatchers(RUTAS_OPENAPI).permitAll();
-                            }
-                            rutas.anyRequest().authenticated();
-                        })
+                        rutas ->
+                                rutas.requestMatchers(RUTA_HEALTH)
+                                        .permitAll()
+                                        .anyRequest()
+                                        .authenticated())
                 .oauth2ResourceServer(
                         oauth2 ->
                                 oauth2.jwt(
@@ -225,7 +289,7 @@ public class SecurityConfig {
      * y no simplemente mantener la anotacion.
      */
     @SuppressWarnings("java:S4502")
-    private void aplicarBase(HttpSecurity http) throws Exception {
+    private void aplicarBase(HttpSecurity http, String politicaDeContenido) throws Exception {
         http.cors(cors -> cors.configurationSource(origenesPermitidos()))
                 .csrf(csrf -> csrf.disable())
                 .httpBasic(configuracion -> configuracion.disable())
@@ -234,7 +298,7 @@ public class SecurityConfig {
                 .anonymous(Customizer.withDefaults())
                 .sessionManagement(
                         sesion -> sesion.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .headers(cabecerasDeSeguridad())
+                .headers(cabecerasDeSeguridad(politicaDeContenido))
                 .exceptionHandling(
                         errores ->
                                 errores.authenticationEntryPoint(entradaNoAutenticada)
@@ -257,18 +321,27 @@ public class SecurityConfig {
      * {@code DENY} es mas estricto y no tiene costo —nada de esta API se
      * sirve dentro de un {@code frame}—.
      *
-     * <p><b>{@code Content-Security-Policy: default-src 'none'}.</b> No es
-     * default de Spring Security. Esta API es de solo lectura y solo
-     * devuelve {@code application/json} o {@code application/problem+json}:
-     * no carga scripts, estilos ni imagenes propias, asi que la politica mas
-     * restrictiva posible no rompe nada y cierra la puerta a que una
-     * respuesta reflejada se interprete alguna vez como HTML o script.
+     * <p><b>{@code Content-Security-Policy}.</b> No es default de Spring
+     * Security, y es la unica cabecera que <b>no</b> es igual en todas las
+     * cadenas: la decide quien llama, entre {@value #CSP_API} y
+     * {@link #CSP_DOCUMENTACION}. Es un parametro y no una constante porque
+     * esta aplicacion sirve dos cosas distintas por el mismo puerto, y una
+     * sola politica no puede ser correcta para las dos: la API no referencia
+     * ningun recurso y Swagger UI no existe sin los suyos. Darle a la
+     * documentacion lo que necesita por una cadena aparte evita el camino
+     * facil y equivocado, que seria aflojar la politica de la API para que la
+     * pagina se vea (#106).
+     *
+     * <p>Al agregar una cadena nueva hay que elegir una de las dos. Si sirve
+     * datos, {@value #CSP_API}; si sirve HTML, la pregunta es si ese HTML
+     * deberia existir en una API.
      */
-    private Customizer<HeadersConfigurer<HttpSecurity>> cabecerasDeSeguridad() {
+    private Customizer<HeadersConfigurer<HttpSecurity>> cabecerasDeSeguridad(
+            String politicaDeContenido) {
         return cabeceras ->
                 cabeceras
                         .frameOptions(frame -> frame.deny())
-                        .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'none'"));
+                        .contentSecurityPolicy(csp -> csp.policyDirectives(politicaDeContenido));
     }
 
     /**

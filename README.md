@@ -1092,6 +1092,7 @@ ninguna `@Entity` JPA ni DTO web puede aparecer en una firma de `domain` o
 - [`docs/contratos/openapi.yaml`](docs/contratos/openapi.yaml) — el mismo contrato en OpenAPI, generado por el servicio y verificado por una prueba.
 - [`docs/adr/`](docs/adr/) — decisiones de arquitectura, una por archivo, con su índice.
 - [`docs/demo/`](docs/demo/) — guion cronometrado y colección de requests (Bruno) para producir en vivo las evidencias de §11 que corresponden a este servicio, con el checklist cruzado §11/§12.
+- [`docs/calidad-heuristico.md`](docs/calidad-heuristico.md) — lectura del informe automático de calidad (`docs/EVALUACION.md`): qué hallazgos bajos son defectos reales y cuáles son limitaciones conocidas del análisis heurístico, con evidencia de código.
 - `CLAUDE.md` — contexto del repositorio y reglas no negociables.
 - `.claude/skills/` — flujo de git del proyecto y convenciones de arquitectura hexagonal.
 
